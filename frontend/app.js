@@ -590,6 +590,132 @@ async function runToleranceStudy() {
     }
 }
 
+// ============================================================================
+// G-CODE EXPORT FUNKTIONEN
+// ============================================================================
+
+let lastGCodeData = null;  // Speichere den letzten G-Code für Download
+
+async function exportGCode() {
+    try {
+        // Zeige Modal mit Loading
+        document.getElementById('gcodeModal').style.display = 'flex';
+        document.getElementById('gcodeLoading').style.display = 'block';
+        document.getElementById('gcodeContent').style.display = 'none';
+        document.getElementById('gcodeError').style.display = 'none';
+
+        // Hole Eingabewerte
+        const sequence = document.getElementById('sequence').value || '[0/±45/90]s';
+        const material = document.getElementById('material').value || 'M40J';
+        const plyThickness = parseFloat(document.getElementById('plyThickness').value) || 0.125;
+        
+        const diameterBottom = parseFloat(document.getElementById('diameterBottom').value) || 200;
+        const diameterTop = parseFloat(document.getElementById('diameterTop').value) || 200;
+        const height = parseFloat(document.getElementById('height').value) || 500;
+
+        // Gebung für geometrische Parameter
+        const diameter = (diameterBottom + diameterTop) / 2;
+        const windingAngle = 45.0;  // Default
+        const pitchMm = 10.0;  // Default
+        const numTurns = Math.floor(height / pitchMm / 2) || 5;
+
+        // API Anfrage
+        const payload = {
+            sequence: sequence,
+            material: material,
+            ply_thickness_mm: plyThickness,
+            diameter_mm: diameter,
+            length_mm: height,
+            taper_angle_deg: 0.0,
+            winding_angle_deg: windingAngle,
+            pitch_mm: pitchMm,
+            num_turns: numTurns,
+            machine_type: "4-axis",
+            controller_type: "fanuc",
+            feed_rate_mm_min: 100.0
+        };
+
+        console.log('G-Code Export Payload:', payload);
+
+        const response = await fetch(`${API_URL}/export-gcode`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server Error ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+
+        // Speichere für Download
+        lastGCodeData = {
+            gcode: result.gcode,
+            filename: result.filename,
+            timestamp: new Date().toISOString()
+        };
+
+        // Zeige Results
+        document.getElementById('gcodeLoading').style.display = 'none';
+        document.getElementById('gcodeContent').style.display = 'block';
+
+        // Populate Results
+        document.getElementById('gcodeText').textContent = result.gcode;
+        document.getElementById('gcodeFilename').textContent = result.filename;
+        document.getElementById('gcodeLines').textContent = result.gcode.split('\n').length;
+        document.getElementById('gcodeMachine').textContent = result.machine_config.type.toUpperCase();
+        document.getElementById('gcodeTime').textContent = result.path_statistics.estimated_time_min.toFixed(1);
+
+        showSuccess('✓ G-Code erfolgreich generiert!');
+
+    } catch (error) {
+        console.error('G-Code Export Error:', error);
+        document.getElementById('gcodeLoading').style.display = 'none';
+        document.getElementById('gcodeError').style.display = 'block';
+        document.getElementById('gcodeErrorText').textContent = error.message;
+        showError('G-Code Export fehlgeschlagen: ' + error.message);
+    }
+}
+
+function closeGCodeModal() {
+    document.getElementById('gcodeModal').style.display = 'none';
+    lastGCodeData = null;
+}
+
+function downloadGCode() {
+    if (!lastGCodeData) {
+        showError('Keine G-Code Daten verfügbar');
+        return;
+    }
+
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(lastGCodeData.gcode));
+    element.setAttribute('download', lastGCodeData.filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+
+    showSuccess('✓ G-Code heruntergeladen: ' + lastGCodeData.filename);
+}
+
+function copyGCodeToClipboard() {
+    if (!lastGCodeData) {
+        showError('Keine G-Code Daten verfügbar');
+        return;
+    }
+
+    navigator.clipboard.writeText(lastGCodeData.gcode).then(() => {
+        showSuccess('✓ G-Code in die Zwischenablage kopiert!');
+    }).catch(err => {
+        showError('Fehler beim Kopieren: ' + err.message);
+    });
+}
+
 // Bei Seitenladezeiten starten
 document.addEventListener('DOMContentLoaded', function() {
     loadDataFromBackend();
