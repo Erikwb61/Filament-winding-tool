@@ -664,10 +664,14 @@ async function exportGCode() {
         const diameterTop = parseFloat(document.getElementById('diameterTop').value) || 200;
         const height = parseFloat(document.getElementById('height').value) || 500;
 
-        // Gebung für geometrische Parameter
+        // Hole Prozessparameter aus Formular
+        const windingAngle = parseFloat(document.getElementById('windingAngle').value) || 45.0;
+        const pitchMm = parseFloat(document.getElementById('pitchMm').value) || 10.0;
+        const feedRateMmMin = parseFloat(document.getElementById('feedRateMmMin').value) || 100.0;
+        const machineType = document.getElementById('machineType').value || '4-axis';
+
+        // Berechnung für geometrische Parameter
         const diameter = (diameterBottom + diameterTop) / 2;
-        const windingAngle = 45.0;  // Default
-        const pitchMm = 10.0;  // Default
         const numTurns = Math.floor(height / pitchMm / 2) || 5;
 
         // API Anfrage
@@ -681,9 +685,9 @@ async function exportGCode() {
             winding_angle_deg: windingAngle,
             pitch_mm: pitchMm,
             num_turns: numTurns,
-            machine_type: "4-axis",
+            machine_type: machineType,
             controller_type: "fanuc",
-            feed_rate_mm_min: 100.0
+            feed_rate_mm_min: feedRateMmMin
         };
 
         console.log('G-Code Export Payload:', payload);
