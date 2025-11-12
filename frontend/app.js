@@ -1,5 +1,17 @@
 // Backend URL
-const API_URL = 'http://localhost:5000/api';
+function deriveApiUrl() {
+    const override = window.FW_API_URL || window.__FW_API_URL__;
+    if (override && typeof override === 'string') {
+        return override.replace(/\/$/, '');
+    }
+    const origin = window.location && window.location.origin;
+    if (origin && origin !== 'null' && origin !== 'file://') {
+        return `${origin.replace(/\/$/, '')}/api`;
+    }
+    return 'http://localhost:5000/api';
+}
+
+const API_URL = deriveApiUrl();
 
 // Material-Datenbank (wird vom Backend geladen)
 let MATERIALS = {};
@@ -10,6 +22,7 @@ let PROCESSES = {};
 // Globale Variablen
 let layers = [];
 let autoclaveChart = null;
+let toleranceChartInstance = null;
 
 // Chart initialisieren und Daten vom Backend laden
 async function initAutoclaveChart() {
@@ -286,6 +299,9 @@ function reset() {
     document.getElementById('diameterBottom').value = '200';
     document.getElementById('diameterTop').value = '200';
     document.getElementById('height').value = '500';
+    document.getElementById('loadNx').value = '1000';
+    document.getElementById('loadNy').value = '0';
+    document.getElementById('loadNxy').value = '0';
     document.getElementById('layersBody').innerHTML = '';
     document.getElementById('summary').style.display = 'none';
     document.getElementById('circumference').textContent = '–';
@@ -294,6 +310,18 @@ function reset() {
     document.getElementById('time').textContent = '–';
     document.getElementById('mass').textContent = '–';
     document.getElementById('totalThickness').textContent = '–';
+    document.getElementById('clt-ex').textContent = '–';
+    document.getElementById('clt-gxy').textContent = '–';
+    document.getElementById('clt-sf').textContent = '–';
+    document.getElementById('clt-ply').textContent = '–';
+    document.getElementById('clt-status').textContent = '–';
+    document.getElementById('clt-prob').textContent = '–';
+    document.getElementById('cltResults').classList.add('hidden');
+    document.getElementById('toleranceChartContainer').classList.add('hidden');
+    if (toleranceChartInstance) {
+        toleranceChartInstance.destroy();
+        toleranceChartInstance = null;
+    }
     hideMessages();
 }
 
@@ -396,7 +424,7 @@ async function calculateLaminateProperties() {
         
         document.getElementById('clt-ex').textContent = effProps.E_x_GPa.toFixed(3);
         document.getElementById('clt-gxy').textContent = effProps.G_xy_GPa.toFixed(3);
-        document.getElementById('cltResults').style.display = 'block';
+        document.getElementById('cltResults').classList.remove('hidden');
         
         showSuccess(
             `✓ CLT berechnet: E_x=${effProps.E_x_GPa.toFixed(2)} GPa, E_y=${effProps.E_y_GPa.toFixed(2)} GPa, G_xy=${effProps.G_xy_GPa.toFixed(2)} GPa`
@@ -416,7 +444,9 @@ async function calculateFailureAnalysis() {
         const sequence = document.getElementById('sequence').value;
         const plyThickness = parseFloat(document.getElementById('plyThickness').value);
         const material = document.getElementById('material').value;
-        const nx = parseFloat(document.getElementById('diameterBottom').value) || 1000;
+        const nx = parseFloat(document.getElementById('loadNx').value) || 0;
+        const ny = parseFloat(document.getElementById('loadNy').value) || 0;
+        const nxy = parseFloat(document.getElementById('loadNxy').value) || 0;
 
         const response = await fetch(`${API_URL}/failure-analysis`, {
             method: 'POST',
@@ -426,8 +456,8 @@ async function calculateFailureAnalysis() {
                 material: material,
                 ply_thickness_mm: plyThickness,
                 N_x: nx,
-                N_y: 0,
-                N_xy: 0,
+                N_y: ny,
+                N_xy: nxy,
                 load_case: 'tension'
             })
         });
@@ -445,10 +475,15 @@ async function calculateFailureAnalysis() {
         const global = result.global_analysis;
         
         document.getElementById('clt-sf').textContent = global.min_safety_factor.toFixed(2);
-        document.getElementById('clt-ply').textContent = global.critical_ply_id;
-        document.getElementById('clt-status').textContent = global.design_status.toUpperCase();
-        document.getElementById('clt-prob').textContent = (global.probability_of_failure * 100).toFixed(2);
-        document.getElementById('cltResults').style.display = 'block';
+        document.getElementById('clt-ply').textContent =
+            global.critical_ply_id !== null && global.critical_ply_id !== undefined ? global.critical_ply_id : '–';
+        const designStatus = (global.design_status || 'unknown').toUpperCase();
+        document.getElementById('clt-status').textContent = designStatus;
+        const probabilityRaw = global.probability_of_failure;
+        const probabilityPercent =
+            typeof probabilityRaw === 'number' ? (probabilityRaw * 100).toFixed(2) : '–';
+        document.getElementById('clt-prob').textContent = probabilityPercent;
+        document.getElementById('cltResults').classList.remove('hidden');
         
         showSuccess(
             `✓ Failure Analysis: Min SF=${global.min_safety_factor.toFixed(2)}, Critical Ply=${global.critical_ply_id}, Status=${global.design_status.toUpperCase()}`
@@ -469,6 +504,9 @@ async function runToleranceStudy() {
         const plyThickness = parseFloat(document.getElementById('plyThickness').value);
         const material = document.getElementById('material').value;
         const numSamples = 500;
+        const nx = parseFloat(document.getElementById('loadNx').value) || 0;
+        const ny = parseFloat(document.getElementById('loadNy').value) || 0;
+        const nxy = parseFloat(document.getElementById('loadNxy').value) || 0;
 
         const response = await fetch(`${API_URL}/tolerance-study`, {
             method: 'POST',
@@ -480,9 +518,9 @@ async function runToleranceStudy() {
                 angle_tolerance_deg: 1.0,
                 thickness_tolerance_pct: 5.0,
                 num_samples: numSamples,
-                N_x: 1000,
-                N_y: 0,
-                N_xy: 0
+                N_x: nx,
+                N_y: ny,
+                N_xy: nxy
             })
         });
 
@@ -499,8 +537,8 @@ async function runToleranceStudy() {
         const props = result.property_statistics;
         
         // Chart anzeigen
-        document.getElementById('toleranceChartContainer').style.display = 'block';
-        document.getElementById('cltResults').style.display = 'block';
+        document.getElementById('toleranceChartContainer').classList.remove('hidden');
+        document.getElementById('cltResults').classList.remove('hidden');
         
         // Update result cards
         if (props.E_x) {
@@ -508,6 +546,16 @@ async function runToleranceStudy() {
         }
         if (props.G_xy) {
             document.getElementById('clt-gxy').textContent = props.G_xy.mean.toFixed(3);
+        }
+
+        if (result.failure_analysis) {
+            const failureStats = result.failure_analysis;
+            if (typeof failureStats.mean_safety_factor === 'number') {
+                document.getElementById('clt-sf').textContent = failureStats.mean_safety_factor.toFixed(2);
+            }
+            if (typeof failureStats.probability_of_failure === 'number') {
+                document.getElementById('clt-prob').textContent = (failureStats.probability_of_failure * 100).toFixed(2);
+            }
         }
 
         // Tolerance Chart erstellen
@@ -529,11 +577,11 @@ async function runToleranceStudy() {
 
         const ctx = document.getElementById('toleranceChart');
         if (ctx) {
-            if (window.toleranceChartInstance) {
-                window.toleranceChartInstance.destroy();
-            }
+        if (toleranceChartInstance) {
+            toleranceChartInstance.destroy();
+        }
 
-            window.toleranceChartInstance = new Chart(ctx, {
+        toleranceChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: chartData.labels,

@@ -11,7 +11,6 @@ from flask_cors import CORS
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Tuple, Optional, Any
 import os
-import re
 import uuid
 import logging
 import traceback
@@ -106,7 +105,11 @@ def ensure_material(material_key: str, db: dict, db_name: str):
         raise KeyError(f"Material '{material_key}' nicht in {db_name} vorhanden.")
 
 
-def parse_sequence_general(payload_sequence: Any, default_material_key: str = "M40J") -> Tuple[List[Tuple[str, float, int]], bool]:
+def parse_sequence_general(
+    payload_sequence: Any,
+    default_material_key: str = "M40J",
+    ply_thickness_mm: float = 0.125,
+) -> Tuple[List[Tuple[str, float, int]], bool]:
     """
     Vereinheitlichter Parser für CLT/Failure/Tolerance:
       - String:  "[0/±45/90]s", "[-45/0/+45]", "0x8/90x2", "[0/90]"
@@ -128,37 +131,24 @@ def parse_sequence_general(payload_sequence: Any, default_material_key: str = "M
     # Stringformat
     seq_str = str(payload_sequence).strip()
     is_symmetric = seq_str.lower().endswith('s')
-    core = seq_str[:-1].strip() if is_symmetric else seq_str
 
-    if core.startswith('[') and core.endswith(']'):
-        core = core[1:-1].strip()
-
-    if not core:
+    if not seq_str:
         return [(default_material_key, 0.0, 8)], is_symmetric
 
+    base_material = MATERIALS.get(default_material_key)
+    if base_material is None:
+        raise KeyError(f"Material '{default_material_key}' nicht in PRESETS.MATERIALS vorhanden.")
+
+    layers = fw_parser.parse_sequence(seq_str, ply_thickness_mm / 1000.0, base_material)
+
     lamina_list: List[Tuple[str, float, int]] = []
-    for token in core.split('/'):
-        a_str = token.strip()
-        if not a_str:
-            continue
-
-        m = re.match(r'^(±|\+|-)?\s*(\d+)', a_str)
-        if not m:
-            raise ValueError(f"Ungültiger Layer-Eintrag: '{a_str}'")
-
-        sign, ang = m.group(1), int(m.group(2))
-        # Multiplikator ...xN
-        c = 1
-        cm = re.search(r'x\s*(\d+)$', a_str, re.IGNORECASE)
-        if cm:
-            c = int(cm.group(1))
-
-        if sign == '±':
-            lamina_list.append((default_material_key, +float(ang), c))
-            lamina_list.append((default_material_key, -float(ang), c))
+    for layer in layers:
+        angle = float(getattr(layer, "angle", 0.0))
+        if lamina_list and lamina_list[-1][0] == default_material_key and abs(lamina_list[-1][1] - angle) < 1e-6:
+            prev_mat, prev_angle, prev_count = lamina_list[-1]
+            lamina_list[-1] = (prev_mat, prev_angle, prev_count + 1)
         else:
-            val = -float(ang) if sign == '-' else float(ang)
-            lamina_list.append((default_material_key, val, c))
+            lamina_list.append((default_material_key, angle, 1))
 
     if not lamina_list:
         lamina_list = [(default_material_key, 0.0, 8)]
@@ -302,7 +292,11 @@ def api_laminate_props():
         material_key = payload.material
         ensure_material(material_key, LaminaDatabase.MATERIALS, "LaminaDatabase.MATERIALS")
 
-        lamina_list, is_sym = parse_sequence_general(payload.sequence, default_material_key=material_key)
+        lamina_list, is_sym = parse_sequence_general(
+            payload.sequence,
+            default_material_key=material_key,
+            ply_thickness_mm=payload.ply_thickness_mm,
+        )
         lam = SymmetricLaminate(lamina_list, ply_thickness_mm=payload.ply_thickness_mm) if is_sym \
               else LaminateProperties(lamina_list, ply_thickness_mm=payload.ply_thickness_mm)
 
@@ -343,7 +337,11 @@ def api_failure():
         material_key = payload.material
         ensure_material(material_key, LaminaDatabase.MATERIALS, "LaminaDatabase.MATERIALS")
 
-        lamina_list, is_sym = parse_sequence_general(payload.sequence, default_material_key=material_key)
+        lamina_list, is_sym = parse_sequence_general(
+            payload.sequence,
+            default_material_key=material_key,
+            ply_thickness_mm=payload.ply_thickness_mm,
+        )
         lam = SymmetricLaminate(lamina_list, ply_thickness_mm=payload.ply_thickness_mm) if is_sym \
               else LaminateProperties(lamina_list, ply_thickness_mm=payload.ply_thickness_mm)
 
@@ -351,6 +349,13 @@ def api_failure():
         res = analyzer.analyze(payload.N_x, payload.N_y, payload.N_xy, payload.load_case)
 
         reserve_rating = ReserveFactorAnalysis.get_rf_rating(res["min_safety_factor"])
+        min_sf = res.get("min_safety_factor", 0.0)
+        if min_sf <= 0:
+            probability_of_failure = 1.0
+        elif min_sf >= 1.0:
+            probability_of_failure = 0.0
+        else:
+            probability_of_failure = round(1.0 - min_sf, 4)
 
         plies_fmt = []
         for p in res["plies"]:
@@ -382,6 +387,7 @@ def api_failure():
                 "reserve_strength_percent": round(res["reserve_strength_percent"], 2),
                 "design_status": "safe" if res["min_safety_factor"] > 1.5 else ("warning" if res["min_safety_factor"] > 1.0 else "critical"),
                 "reserve_class": reserve_rating,
+                "probability_of_failure": probability_of_failure,
             },
         })
 
@@ -398,7 +404,11 @@ def api_tolerance():
         material_key = payload.material
         ensure_material(material_key, LaminaDatabase.MATERIALS, "LaminaDatabase.MATERIALS")
 
-        lamina_list, is_sym = parse_sequence_general(payload.sequence, default_material_key=material_key)
+        lamina_list, is_sym = parse_sequence_general(
+            payload.sequence,
+            default_material_key=material_key,
+            ply_thickness_mm=payload.ply_thickness_mm,
+        )
         lam = SymmetricLaminate(lamina_list, ply_thickness_mm=payload.ply_thickness_mm) if is_sym \
               else LaminateProperties(lamina_list, ply_thickness_mm=payload.ply_thickness_mm)
 
