@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filament Winding Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --accent: #888888;
+            --accent-dark: #666666;
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3a3a3a;
+            --glass-bg: rgba(30, 30, 30, 0.5);
+            --glass-border: rgba(130, 130, 130, 0.2);
+            --text-primary: #d0d0d0;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            --success: #666666;
+            --error: #999999;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background-image: url('./carbon-bg.png');
+            background-size: cover;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+            padding: 24px;
+            color: var(--text-primary);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.7) 0%, rgba(45, 45, 45, 0.7) 100%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            animation: fadeInUp 0.7s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            margin-bottom: 40px;
+            padding: 48px 40px;
+            background: linear-gradient(135deg, rgba(30, 30, 30, 0.7) 0%, rgba(45, 45, 45, 0.7) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            position: relative;
+            overflow: hidden;
+            animation: slideInDown 0.8s ease-out;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(130, 130, 130, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+            color: #999999;
+            line-height: 1.2;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+            letter-spacing: 0.3px;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .panel:hover {
+            background: rgba(15, 19, 32, 0.6);
+            border-color: rgba(13, 217, 255, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .panel-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #888888;
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .panel-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, #888888 0%, transparent 100%);
+        }
+
+        .section-divider {
+            margin: 28px 0;
+            padding-top: 28px;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 18px;
+            opacity: 0.8;
+        }
+
+        .image-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 32px;
+            overflow: hidden;
+        }
+
+        .image-panel img {
+            width: 100%;
+            height: auto;
+            max-height: 500px;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .image-panel img:hover {
+            transform: scale(1.02);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 11px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(136, 136, 136, 0.15);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            background: rgba(136, 136, 136, 0.05);
+            border-color: #888888;
+            box-shadow: 0 0 0 2px rgba(136, 136, 136, 0.1);
+        }
+
+        .alert {
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 18px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.95rem;
+            animation: slideInDown 0.3s ease-out;
+        }
+
+        .alert.show {
+            display: flex;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #ff8787;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: #6ee7b7;
+        }
+
+        .alert-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, rgba(136, 136, 136, 0.08) 0%, rgba(102, 102, 102, 0.04) 100%);
+            border: 1px solid rgba(136, 136, 136, 0.15);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+            margin-top: 28px;
+        }
+
+        button {
+            padding: 11px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            position: relative;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #888888 0%, #666666 100%);
+            color: #1a1a1a;
+            box-shadow: 0 8px 16px rgba(136, 136, 136, 0.25);
+            border: 1px solid #888888;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(136, 136, 136, 0.35);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(136, 136, 136, 0.1);
+            color: var(--text-primary);
+            border: 1px solid rgba(136, 136, 136, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(136, 136, 136, 0.15);
+            border-color: #888888;
+            color: #888888;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, rgba(136, 136, 136, 0.08) 0%, rgba(102, 102, 102, 0.04) 100%);
+            border: 1px solid rgba(136, 136, 136, 0.15);
+            border-radius: 8px;
+            padding: 18px;
+            margin-top: 24px;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .summary-box.show {
+            display: block;
+        }
+
+        .summary-box strong {
+            color: #888888;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(136, 136, 136, 0.1);
+        }
+
+        .table-container {
+            margin-top: 28px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--glass-border);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--glass-bg);
+        }
+
+        thead {
+            background: linear-gradient(135deg, rgba(136, 136, 136, 0.12) 0%, rgba(102, 102, 102, 0.06) 100%);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #888888;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--glass-border);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(13, 217, 255, 0.06);
+            border-left: 2px solid var(--accent);
+            padding-left: 14px;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 14px;
+            margin-top: 28px;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, rgba(136, 136, 136, 0.08) 0%, rgba(102, 102, 102, 0.03) 100%);
+            border: 1px solid rgba(136, 136, 136, 0.12);
+            padding: 20px 16px;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .result-card:hover {
+            transform: translateY(-6px);
+            border-color: #888888;
+            box-shadow: 0 12px 30px rgba(136, 136, 136, 0.15);
+        }
+
+        .result-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+        }
+
+        .result-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #888888;
+            margin-bottom: 6px;
+        }
+
+        .result-unit {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+        }
+
+        .autoclave-section {
+            grid-column: 1 / -1;
+        }
+
+        .table-section {
+            grid-column: 1 / -1;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #888888 0%, #666666 100%);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #888888;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 32px 24px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .results-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .panel {
+                padding: 24px;
+            }
+
+            button {
+                padding: 10px 16px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1>Filament Winding Tool</h1>
+                <p>Advanced Composite Design Platform</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- INPUT PANEL -->
+            <div class="panel">
+                <div class="panel-title">Configuration</div>
+
+                <div class="alert alert-error" id="errorMsg">
+                    <span class="alert-icon">!</span>
+                    <span id="errorText"></span>
+                </div>
+                <div class="alert alert-success" id="successMsg">
+                    <span class="alert-icon">✓</span>
+                    <span id="successText"></span>
+                </div>
+
+                <div class="info-box">
+                    Enter the layup sequence using standard notation (e.g., [0/±45/90]s) and configure the geometry parameters for accurate calculations.
+                </div>
+
+                <div class="form-group">
+                    <label for="sequence">Layup Sequence</label>
+                    <input type="text" id="sequence" value="[0/±45/90]s" placeholder="e.g., [0/±45/90]s">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="plyThickness">Ply Thickness (mm)</label>
+                        <input type="number" id="plyThickness" value="0.125" min="0.01" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="material">Material</label>
+                        <select id="material"><option>Loading...</option></select>
+                    </div>
+                </div>
+
+                <div class="section-divider">
+                    <div class="section-title">Geometry</div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="diameterBottom">Diameter Bottom (mm)</label>
+                        <input type="number" id="diameterBottom" value="200" min="10" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="diameterTop">Diameter Top (mm)</label>
+                        <input type="number" id="diameterTop" value="200" min="10" step="1">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="height">Height (mm)</label>
+                        <input type="number" id="height" value="500" min="10" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="process">Process</label>
+                        <select id="process"><option>Loading...</option></select>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-primary" onclick="parseLayers()">Parse</button>
+                    <button class="btn-primary" onclick="calculate()">Calculate</button>
+                    <button class="btn-secondary" onclick="reset()">Reset</button>
+                </div>
+
+                <div id="summary" class="summary-box">
+                    <strong>Results Summary</strong><br><br>
+                    <div id="summaryText"></div>
+                </div>
+            </div>
+
+            <!-- IMAGE PANEL -->
+            <div class="panel image-panel">
+                <div class="panel-title">Filament Winding Process</div>
+                <img src="Filament-Winding-4.jpg" alt="Filament Winding Process">
+            </div>
+
+            <!-- AUTOCLAVE PROFILE -->
+            <div class="panel autoclave-section">
+                <div class="panel-title">Autoclave Profile</div>
+                <div class="chart-container">
+                    <canvas id="autoclaveChart"></canvas>
+                </div>
+            </div>
+
+            <!-- TABLE & RESULTS -->
+            <div class="panel table-section">
+                <div class="panel-title">Layer Stack & Analysis</div>
+
+                <div class="table-container">
+                    <table id="layersTable">
+                        <thead>
+                            <tr>
+                                <th>Layer</th>
+                                <th>Angle (°)</th>
+                                <th>Thickness (mm)</th>
+                                <th>Material</th>
+                                <th>Cumulative (mm)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="layersBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="results-grid" id="resultsGrid">
+                    <div class="result-card">
+                        <div class="result-label">Circumference</div>
+                        <div class="result-value" id="circumference">–</div>
+                        <div class="result-unit">meters</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-label">Path Length</div>
+                        <div class="result-value" id="pathLength">–</div>
+                        <div class="result-unit">meters</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-label">Passes</div>
+                        <div class="result-value" id="passes">–</div>
+                        <div class="result-unit">cycles</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-label">Processing Time</div>
+                        <div class="result-value" id="time">–</div>
+                        <div class="result-unit">minutes</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-label">Total Mass</div>
+                        <div class="result-value" id="mass">–</div>
+                        <div class="result-unit">kilograms</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-label">Stack Thickness</div>
+                        <div class="result-value" id="totalThickness">–</div>
+                        <div class="result-unit">millimeters</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

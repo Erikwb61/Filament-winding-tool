@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carbon Fiber Background Generator</title>
+</head>
+<body>
+    <canvas id="canvas" style="display: block;"></canvas>
+    <script>
+        // Canvas-Größe
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = 1920;
+        canvas.height = 1440;
+        
+        // Dunkler Hintergrund
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Carbon-Faser Muster
+        for (let i = 0; i < 5000; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const size = Math.random() * 3 + 0.5;
+            const opacity = Math.random() * 0.4 + 0.1;
+            
+            ctx.fillStyle = `rgba(100, 100, 100, ${opacity})`;
+            ctx.fillRect(x, y, size, size);
+        }
+        
+        // Feinere Details
+        ctx.strokeStyle = 'rgba(150, 150, 150, 0.05)';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i < 200; i++) {
+            ctx.beginPath();
+            ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+            ctx.lineTo(
+                Math.random() * canvas.width,
+                Math.random() * canvas.height
+            );
+            ctx.stroke();
+        }
+        
+        // Verlauf oben (dunkelgrau)
+        const gradientTop = ctx.createLinearGradient(0, 0, 0, 300);
+        gradientTop.addColorStop(0, 'rgba(0, 0, 0, 0.3)');
+        gradientTop.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = gradientTop;
+        ctx.fillRect(0, 0, canvas.width, 300);
+        
+        // Verlauf unten (dunkelgrau)
+        const gradientBottom = ctx.createLinearGradient(0, canvas.height - 300, 0, canvas.height);
+        gradientBottom.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        gradientBottom.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+        ctx.fillStyle = gradientBottom;
+        ctx.fillRect(0, canvas.height - 300, canvas.width, 300);
+        
+        // Als PNG herunterladen
+        canvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'carbon-fiber-bg.png';
+            a.click();
+        });
+    </script>
+</body>
+</html>
