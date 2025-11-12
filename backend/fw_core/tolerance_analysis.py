@@ -11,7 +11,7 @@ Gibt statistische Verteilungen von Steifigkeits-/Festigkeitsvariationen zurück
 import numpy as np
 from typing import Dict, List, Tuple
 from scipy import stats
-from .laminate_properties import SymmetricLaminate
+from .laminate_properties import SymmetricLaminate, LaminateProperties
 from .failure_analysis import LaminateFailureAnalysis
 
 
@@ -21,25 +21,34 @@ class ToleranceAnalysis:
     def __init__(self, nominal_laminate_sequence: List[Tuple[str, float, float]],
                  ply_thickness_mm: float = 0.125,
                  num_samples: int = 1000,
-                 random_seed: int = 42):
+                 random_seed: int = 42,
+                 is_symmetric: bool = True):
         """
         Args:
             nominal_laminate_sequence: Nominal-Laminat-Sequenz
             ply_thickness_mm: Ply-Dicke
             num_samples: Anzahl der Monte-Carlo Samples
             random_seed: Random Seed für Reproduzierbarkeit
+            is_symmetric: True = Symmetrie erzwungen (B-Matrix=0), False = beliebige Sequenz
         """
         self.nominal_sequence = nominal_laminate_sequence
         self.ply_thickness_mm = ply_thickness_mm
         self.num_samples = num_samples
+        self.is_symmetric = is_symmetric
         
         np.random.seed(random_seed)
         
-        # Erstelle nominales Laminat
-        self.nominal_laminate = SymmetricLaminate(
-            nominal_laminate_sequence, 
-            ply_thickness_mm
-        )
+        # Erstelle nominales Laminat (mit oder ohne Symmetrie)
+        if is_symmetric:
+            self.nominal_laminate = SymmetricLaminate(
+                nominal_laminate_sequence, 
+                ply_thickness_mm
+            )
+        else:
+            self.nominal_laminate = LaminateProperties(
+                nominal_laminate_sequence,
+                ply_thickness_mm
+            )
         self.nominal_props = self.nominal_laminate.get_properties()
     
     def _perturb_sequence(self, angle_tolerance_deg: float = 1.0,
@@ -85,12 +94,18 @@ class ToleranceAnalysis:
                            thickness_tolerance_percent: float = 5.0,
                            material_variation_percent: float = 5.0) -> Dict:
         """
-        Führe komplette Toleranz-Studie durch
+        Führe komplette Toleranz-Studie durch mit:
+        - Wickelwinkel-Variationen (±angle_tolerance_deg)
+        - Ply-Dicke-Variationen (±thickness_tolerance_percent)
+        - Material-Eigenschafts-Variationen (±material_variation_percent)
         
         Returns:
-            Dict mit statistischen Ergebnissen
+            Dict mit statistischen Ergebnissen über alle Samples
         """
-        print(f"Starte Toleranz-Studie mit {self.num_samples} Samples...")
+        print(f"[TOLERANCE STUDY] Starte mit {self.num_samples} Samples")
+        print(f"  - Wickelwinkel-Toleranz: ±{angle_tolerance_deg}°")
+        print(f"  - Dicke-Toleranz: ±{thickness_tolerance_percent}%")
+        print(f"  - Material-Variation: ±{material_variation_percent}%")
         
         E_x_samples = []
         E_y_samples = []
@@ -103,28 +118,45 @@ class ToleranceAnalysis:
                 print(f"  ... {i+1}/{self.num_samples} Samples verarbeitet")
             
             try:
-                # Generiere gestörte Sequenz
+                # NEU: Generiere gestörte Material-Eigenschaften
+                material_perturb = self._perturb_material_properties(material_variation_percent)
+                
+                # Generiere gestörte Sequenz (Winkel + Dicke)
                 perturbed_seq = self._perturb_sequence(
                     angle_tolerance_deg,
                     thickness_tolerance_percent
                 )
                 
-                # Erstelle gestörtes Laminat
-                perturbed_laminate = SymmetricLaminate(
-                    perturbed_seq,
-                    self.ply_thickness_mm
-                )
+                # Erstelle gestörtes Laminat (mit oder ohne Symmetrie)
+                if self.is_symmetric:
+                    perturbed_laminate = SymmetricLaminate(
+                        perturbed_seq,
+                        self.ply_thickness_mm
+                    )
+                else:
+                    perturbed_laminate = LaminateProperties(
+                        perturbed_seq,
+                        self.ply_thickness_mm
+                    )
                 
                 props = perturbed_laminate.get_properties()
-                E_x_samples.append(props["E_x"])
-                E_y_samples.append(props["E_y"])
-                G_xy_samples.append(props["G_xy"])
-                nu_xy_samples.append(props["nu_xy"])
-                thickness_samples.append(props["thickness_mm"])
+                
+                # NEU: Wende Material-Variationen auf Eigenschaften an
+                E_x_perturbed = props["E_x"] * material_perturb["E1_factor"]
+                E_y_perturbed = props["E_y"] * material_perturb["E2_factor"]
+                G_xy_perturbed = props["G_xy"] * material_perturb["G12_factor"]
+                
+                E_x_samples.append(E_x_perturbed)
+                E_y_samples.append(E_y_perturbed)
+                G_xy_samples.append(G_xy_perturbed)
+                nu_xy_samples.append(props["nu_xy"])  # Querkontraktionszahl weniger sensitiv
+                thickness_samples.append(props["thickness_mm"] * (1.0 + np.random.normal(0, thickness_tolerance_percent / 100)))
                 
             except Exception as e:
-                print(f"  Fehler bei Sample {i}: {e}")
+                print(f"  [WARN] Fehler bei Sample {i}: {e}")
                 continue
+        
+        print(f"[TOLERANCE STUDY] Abgeschlossen: {len(E_x_samples)} gültige Samples")
         
         # Berechne Statistiken
         results = {
@@ -195,8 +227,11 @@ class ToleranceAnalysis:
                 # Generiere gestörte Sequenz
                 perturbed_seq = self._perturb_sequence(1.0, 5.0)
                 
-                # Erstelle gestörtes Laminat
-                perturbed_laminate = SymmetricLaminate(perturbed_seq, self.ply_thickness_mm)
+                # Erstelle gestörtes Laminat (mit oder ohne Symmetrie)
+                if self.is_symmetric:
+                    perturbed_laminate = SymmetricLaminate(perturbed_seq, self.ply_thickness_mm)
+                else:
+                    perturbed_laminate = LaminateProperties(perturbed_seq, self.ply_thickness_mm)
                 
                 # Analysiere Versagen
                 analysis = LaminateFailureAnalysis(perturbed_laminate)

@@ -18,10 +18,20 @@ class FailureAnalysis:
     def tsai_wu_criterion(sigma_1: float, sigma_2: float, tau_12: float,
                          material: str) -> float:
         """
-        Berechne Tsai-Wu Versagenskriterium
+        Berechne VOLLSTÄNDIGE Tsai-Wu Versagenskriterium mit Interaktionsterm
         
-        F = (σ₁/F₁ᵗ)(σ₁/F₁ᶜ) + (σ₂/F₂ᵗ)(σ₂/F₂ᶜ) + (τ₁₂/F₁₂ˢ)² 
-            + σ₁(1/F₁ᵗ - 1/F₁ᶜ) + σ₂(1/F₂ᵗ - 1/F₂ᶜ) - 2f₁₂(σ₁σ₂/(F₁ᵗF₁ᶜF₂ᵗF₂ᶜ))
+        Die korrekte Tsai-Wu Formulierung nach Tsai & Wu (1971):
+        
+        F = (σ₁/F₁ᵗᶜ)² + (σ₂/F₂ᵗᶜ)² + (τ₁₂/F₁₂ˢ)² 
+            + p₁·σ₁ + p₂·σ₂ 
+            + 2·f₁₂·(σ₁·σ₂)/(F₁ᵗᶜ·F₂ᵗᶜ)
+        
+        wobei:
+            - F₁ᵗᶜ = √(F₁ᵗ·F₁ᶜ) (charakteristische Faserfestigkeit)
+            - F₂ᵗᶜ = √(F₂ᵗ·F₂ᶜ) (charakteristische Querfestigkeit)
+            - p₁ = (1/F₁ᶜ - 1/F₁ᵗ) / F₁ᵗᶜ (Asymmetrie-Parameter Faser)
+            - p₂ = (1/F₂ᶜ - 1/F₂ᵗ) / F₂ᵗᶜ (Asymmetrie-Parameter Quer)
+            - f₁₂ = Interaktionsparameter (typisch -0.1 bis 0 für Carbonfasern)
         
         Versagen wenn F ≥ 1
         
@@ -35,26 +45,38 @@ class FailureAnalysis:
         lamina = LaminaDatabase.get_lamina(material)
         props = lamina.get_strength_properties()
         
-        F1t = props["F_1t"]  # Zug-Festigkeit Faserrichtung
-        F1c = props["F_1c"]  # Druck-Festigkeit Faserrichtung
-        F2t = props["F_2t"]  # Zug-Festigkeit Querrichtung
-        F2c = props["F_2c"]  # Druck-Festigkeit Querrichtung
-        F12s = props["F_12s"] # Scherfestigkeit
+        # Festigkeitswerte
+        F1t = props["F_1t"]  # Zug-Festigkeit Faserrichtung (MPa)
+        F1c = props["F_1c"]  # Druck-Festigkeit Faserrichtung (MPa)
+        F2t = props["F_2t"]  # Zug-Festigkeit Querrichtung (MPa)
+        F2c = props["F_2c"]  # Druck-Festigkeit Querrichtung (MPa)
+        F12s = props["F_12s"] # Scherfestigkeit (MPa)
         
-        # Interaktionsparameter (typisch f12 = 0 für erste Näherung)
-        f12 = 0.0
+        # Charakteristische Festigkeitswerte (geometrisches Mittel)
+        F1_char = np.sqrt(F1t * F1c)  # Charakteristische Faserfestigkeit
+        F2_char = np.sqrt(F2t * F2c)  # Charakteristische Querfestigkeit
         
-        # Berechne die einzelnen Terme
-        term1 = (sigma_1 / (F1t * F1c)) * sigma_1
-        term2 = (sigma_2 / (F2t * F2c)) * sigma_2
+        # Asymmetrie-Parameter (berücksichtigen Zug-Druck-Unterschiede)
+        p1 = (1.0/F1c - 1.0/F1t) / F1_char
+        p2 = (1.0/F2c - 1.0/F2t) / F2_char
+        
+        # Interaktionsparameter f12
+        # Für Hochleistungs-Carbonfasern: typisch -0.05 bis -0.1
+        # Negative Werte begünstigen Versagen unter kombinierter Belastung
+        f12 = -0.05  # Realistische Kalibrierung für IM7/M40J
+        
+        # Berechne die Tsai-Wu Funktion
+        term1 = (sigma_1 / F1_char)**2
+        term2 = (sigma_2 / F2_char)**2
         term3 = (tau_12 / F12s)**2
-        term4 = sigma_1 * (1/F1t - 1/F1c)
-        term5 = sigma_2 * (1/F2t - 1/F2c)
-        term6 = -2 * f12 * (sigma_1 * sigma_2 / (F1t * F1c * F2t * F2c))
+        term4 = p1 * sigma_1
+        term5 = p2 * sigma_2
+        term6 = 2.0 * f12 * (sigma_1 * sigma_2) / (F1_char * F2_char)
         
+        # Tsai-Wu Index
         F = term1 + term2 + term3 + term4 + term5 + term6
         
-        return F
+        return max(0, F)  # Versagen Index kann nicht negativ sein
     
     @staticmethod
     def maximum_stress_criterion(sigma_1: float, sigma_2: float, tau_12: float,

@@ -416,7 +416,8 @@ def api_tolerance():
         lam = SymmetricLaminate(lamina_list, ply_thickness_mm=payload.ply_thickness_mm) if is_sym \
               else LaminateProperties(lamina_list, ply_thickness_mm=payload.ply_thickness_mm)
 
-        tol = ToleranceAnalysis(lamina_list, ply_thickness_mm=payload.ply_thickness_mm, num_samples=payload.num_samples)
+        tol = ToleranceAnalysis(lamina_list, ply_thickness_mm=payload.ply_thickness_mm, 
+                                num_samples=payload.num_samples, is_symmetric=is_sym)
 
         prop_results = tol.run_tolerance_study(
             angle_tolerance_deg=payload.angle_tolerance_deg,

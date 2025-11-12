@@ -4,6 +4,39 @@ const API_URL = 'http://localhost:5000/api';
 // Für Debugging: Falls Port 5000 nicht antwortet, verwende 5001
 const API_FALLBACK = 'http://localhost:5001/api';
 
+// Helper: Mache API-Anfrage mit Fallback-Unterstützung
+async function apiCall(endpoint, options = {}) {
+    const urls = [API_URL, API_FALLBACK];
+    
+    for (const url of urls) {
+        try {
+            const fullUrl = `${url}${endpoint}`;
+            console.log(`Trying ${fullUrl}...`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            
+            const response = await fetch(fullUrl, {
+                ...options,
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+                console.log(`Success with ${url}`);
+                return response;
+            }
+        } catch (error) {
+            console.warn(`Failed with ${url}: ${error.message}`);
+            // Try next URL
+        }
+    }
+    
+    // Alle URLs fehlgeschlagen
+    throw new Error('Keine API verfügbar (versucht 5000 und 5001)');
+}
+
 // Material-Datenbank (wird vom Backend geladen)
 let MATERIALS = {};
 
@@ -161,8 +194,8 @@ async function parseLayers() {
             return;
         }
 
-        // API aufrufen
-        const response = await fetch(`${API_URL}/parse`, {
+        // API aufrufen mit Fallback
+        const response = await apiCall('/parse', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -177,7 +210,7 @@ async function parseLayers() {
         const result = await response.json();
 
         if (!response.ok) {
-            showError('Fehler beim Parsen: ' + result.error);
+            showError('Fehler beim Parsen: ' + (result.error || 'Unbekannter Fehler'));
             return;
         }
 

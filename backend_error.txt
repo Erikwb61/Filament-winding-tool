@@ -6,3 +6,16 @@ INFO:werkzeug:[33mPress CTRL+C to quit[0m
 INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:17:23] "POST /api/laminate-properties HTTP/1.1" 200 -
 INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:17:25] "POST /api/failure-analysis HTTP/1.1" 200 -
 INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:17:27] "POST /api/tolerance-study HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:32] "GET /api/materials HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:32] "GET /api/processes HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:32] "GET /api/autoclave-profile HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:39] "OPTIONS /api/failure-analysis HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:39] "POST /api/failure-analysis HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:43] "OPTIONS /api/tolerance-study HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:44] "POST /api/tolerance-study HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:48] "OPTIONS /api/laminate-properties HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:49] "POST /api/laminate-properties HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:50] "OPTIONS /api/failure-analysis HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:50] "POST /api/failure-analysis HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:51] "OPTIONS /api/tolerance-study HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Nov/2025 11:30:51] "POST /api/tolerance-study HTTP/1.1" 200 -

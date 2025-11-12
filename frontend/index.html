@@ -567,12 +567,12 @@
                 </div>
 
                 <div class="info-box">
-                    Enter the layup sequence using standard notation (e.g., [0/±45/90]s) and configure the geometry parameters for accurate calculations.
+                    Enter the layup sequence using standard notation. For symmetric laminates, use the "s" suffix (e.g., [0/±45/90]s). For unsymmetric sequences, omit the "s" (e.g., [0/45/-45/90/0]). Supports angle notation: ±45 for biaxial, +45/-45 for separate angles, and multipliers like 0x2 for multiple plies.
                 </div>
 
                 <div class="form-group">
                     <label for="sequence">Layup Sequence</label>
-                    <input type="text" id="sequence" value="[0/±45/90]s" placeholder="e.g., [0/±45/90]s">
+                    <input type="text" id="sequence" value="[0/±45/90]s" placeholder="e.g., [0/±45/90]s or [0/45/-45/90/0]">
                 </div>
 
                 <div class="form-row">
