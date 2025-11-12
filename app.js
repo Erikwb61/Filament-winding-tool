@@ -355,6 +355,147 @@ async function loadDataFromBackend() {
     }
 }
 
+// ============================================================================
+// NEW CLT (Classical Laminate Theory) Functions
+// ============================================================================
+
+// Laminate Properties (ABD Matrix) berechnen
+async function calculateLaminateProperties() {
+    hideMessages();
+    try {
+        const sequence = document.getElementById('sequence').value;
+        const plyThickness = parseFloat(document.getElementById('plyThickness').value);
+        const material = document.getElementById('material').value;
+
+        if (!sequence || plyThickness <= 0) {
+            showError('Bitte gültige Eingaben machen!');
+            return;
+        }
+
+        const response = await fetch(`${API_URL}/laminate-properties`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sequence: sequence,
+                material: material,
+                ply_thickness_mm: plyThickness
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            showError('CLT Fehler: ' + result.error);
+            console.error(result.traceback);
+            return;
+        }
+
+        // Ergebnisse anzeigen
+        console.log('✓ Laminate Properties (ABD Matrix):', result);
+        const effProps = result.effective_properties;
+        showSuccess(
+            `✓ CLT berechnet: E_x=${effProps.E_x_GPa} GPa, E_y=${effProps.E_y_GPa} GPa, G_xy=${effProps.G_xy_GPa} GPa`
+        );
+
+        return result;
+    } catch (error) {
+        showError('Fehler: ' + error.message);
+        console.error(error);
+    }
+}
+
+// Failure Analysis (Tsai-Wu Kriterium)
+async function calculateFailureAnalysis() {
+    hideMessages();
+    try {
+        const sequence = document.getElementById('sequence').value;
+        const plyThickness = parseFloat(document.getElementById('plyThickness').value);
+        const material = document.getElementById('material').value;
+        const nx = parseFloat(document.getElementById('diameterBottom').value) || 1000;
+
+        const response = await fetch(`${API_URL}/failure-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sequence: sequence,
+                material: material,
+                ply_thickness_mm: plyThickness,
+                N_x: nx,
+                N_y: 0,
+                N_xy: 0,
+                load_case: 'tension'
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            showError('Failure Analysis Fehler: ' + result.error);
+            console.error(result.traceback);
+            return;
+        }
+
+        // Ergebnisse anzeigen
+        console.log('✓ Failure Analysis (Tsai-Wu):', result);
+        const global = result.global_analysis;
+        showSuccess(
+            `✓ Failure Analysis: Min SF=${global.min_safety_factor.toFixed(2)}, Critical Ply=${global.critical_ply_id}, Status=${global.design_status.toUpperCase()}`
+        );
+
+        return result;
+    } catch (error) {
+        showError('Fehler: ' + error.message);
+        console.error(error);
+    }
+}
+
+// Tolerance Study (Monte-Carlo)
+async function runToleranceStudy() {
+    hideMessages();
+    try {
+        const sequence = document.getElementById('sequence').value;
+        const plyThickness = parseFloat(document.getElementById('plyThickness').value);
+        const material = document.getElementById('material').value;
+        const numSamples = 500;
+
+        const response = await fetch(`${API_URL}/tolerance-study`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sequence: sequence,
+                material: material,
+                ply_thickness_mm: plyThickness,
+                angle_tolerance_deg: 1.0,
+                thickness_tolerance_pct: 5.0,
+                num_samples: numSamples,
+                N_x: 1000,
+                N_y: 0,
+                N_xy: 0
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            showError('Tolerance Study Fehler: ' + result.error);
+            console.error(result.traceback);
+            return;
+        }
+
+        // Ergebnisse anzeigen
+        console.log('✓ Tolerance Study (Monte-Carlo):', result);
+        const props = result.property_statistics;
+        showSuccess(
+            `✓ Tolerance Study: ${numSamples} samples, E_x CV=${props.E_x ? props.E_x.cv_percent : 'N/A'}%`
+        );
+
+        return result;
+    } catch (error) {
+        showError('Fehler: ' + error.message);
+        console.error(error);
+    }
+}
+
 // Bei Seitenladezeiten starten
 document.addEventListener('DOMContentLoaded', function() {
     loadDataFromBackend();

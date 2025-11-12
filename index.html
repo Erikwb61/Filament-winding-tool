@@ -616,6 +616,20 @@
                     <button class="btn-secondary" onclick="reset()">Reset</button>
                 </div>
 
+                <div class="section-divider">
+                    <div class="section-title">Advanced CLT Analysis</div>
+                </div>
+
+                <div class="info-box">
+                    Classical Laminate Theory (CLT) für Steifigkeitsmatrix, Versagensanalyse mit Tsai-Wu Kriterium und Toleranzstudien.
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-primary" onclick="calculateLaminateProperties()">ABD Matrix</button>
+                    <button class="btn-primary" onclick="calculateFailureAnalysis()">Failure</button>
+                    <button class="btn-primary" onclick="runToleranceStudy()">Tolerance</button>
+                </div>
+
                 <div id="summary" class="summary-box">
                     <strong>Results Summary</strong><br><br>
                     <div id="summaryText"></div>
