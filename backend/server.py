@@ -552,6 +552,22 @@ def export_gcode():
         )
         
         path_stats = optimizer.get_path_statistics()
+        
+        # ========== 2b. Massen- und Zeitberechnung ==========
+        
+        # Hole Laminat-Dichte aus Materialdatenbank
+        material_data = LaminaDatabase.MATERIALS.get(payload.material, {})
+        laminate_density = material_data.get("density", 1.60)
+        
+        # Berechne Masse und Zeit mit realistischen Parametern
+        mass_time_data = optimizer.calculate_mass_and_time(
+            laminate_density_g_cm3=laminate_density,
+            fiber_volume_fraction=0.60,  # Typisch 60% für Carbon/Epoxy
+            total_laminate_thickness_mm=lam.total_thickness,
+            process_efficiency=0.85,  # 85% Effizienz (realistisch)
+            setup_time_min=15.0  # 15 min Rüst- und Reinigungszeit
+        )
+        
         path_export = optimizer.export_path_points()
         
         # ========== 3. G-Code generieren ==========
@@ -599,6 +615,7 @@ def export_gcode():
                 "max_speed_mm_min": machine_config.max_speed_mm_min
             },
             "path_statistics": path_stats,
+            "mass_and_time": mass_time_data,
             "laminate_properties": {
                 "sequence": str(payload.sequence),
                 "material": payload.material,

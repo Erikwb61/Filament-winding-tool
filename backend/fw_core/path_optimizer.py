@@ -278,6 +278,149 @@ class PathOptimizer:
             "max_z_mm": round(max(p.z for p in points), 2),
         }
     
+    def calculate_mass_and_time(self, 
+                                laminate_density_g_cm3: float = 1.60,
+                                fiber_volume_fraction: float = 0.60,
+                                total_laminate_thickness_mm: float = 1.0,
+                                process_efficiency: float = 0.85,
+                                setup_time_min: float = 15.0) -> Dict:
+        """
+        Berechne Masse und Prozesszeit für das Wickeln
+        
+        Args:
+            laminate_density_g_cm3: Laminat-Dichte in g/cm³ (typisch 1.58-1.61)
+            fiber_volume_fraction: Faseranteil (typisch 0.55-0.65, meist ~60%)
+            total_laminate_thickness_mm: Gesamtdicke des Laminats in mm
+            process_efficiency: Prozesseffizienz (0.0-1.0), standardmäßig 0.85 (85%)
+            setup_time_min: Rüstzeit in Minuten (Vor-/Nachbereitung, typisch 10-20 min)
+        
+        Returns:
+            Dict mit Massen- und Zeitberechnung:
+            - laminate_mass_g: Gesamtmasse des Laminats
+            - fiber_mass_g: Masse der Fasern allein
+            - resin_mass_g: Masse des Harzes (Matrix)
+            - winding_time_min: Reine Wickelzeit
+            - total_time_min: Inklusive Setup + Ineffizienz
+            - effective_speed_mm_min: Tatsächliche Geschwindigkeit mit Ineffizienz
+            - validation: Validierungswarnungen
+        """
+        validation = []
+        
+        # Validiere Input-Parameter
+        if not self.path_points:
+            return {"error": "Kein Pfad generiert"}
+        
+        if laminate_density_g_cm3 <= 0:
+            validation.append("Dichte muss > 0 sein")
+            laminate_density_g_cm3 = 1.60
+        
+        if fiber_volume_fraction <= 0 or fiber_volume_fraction > 1.0:
+            validation.append(f"Faseranteil {fiber_volume_fraction*100}% unrealistisch, verwende 60%")
+            fiber_volume_fraction = 0.60
+        
+        if total_laminate_thickness_mm <= 0:
+            validation.append("Laminatdicke muss > 0 sein")
+            total_laminate_thickness_mm = 1.0
+        
+        if process_efficiency <= 0 or process_efficiency > 1.0:
+            validation.append(f"Prozesseffizienz {process_efficiency*100}% unrealistisch, verwende 85%")
+            process_efficiency = 0.85
+        
+        if setup_time_min < 0:
+            validation.append("Rüstzeit kann nicht negativ sein")
+            setup_time_min = 0
+        
+        # ========== 1. MASSE BERECHNUNG ==========
+        
+        # Mandrel-Oberfläche (ungefähre Wickelfläche)
+        mandrel_surface_area_mm2 = (np.pi * self.geom.diameter_mm * 
+                                      self.geom.length_mm)
+        mandrel_surface_area_cm2 = mandrel_surface_area_mm2 / 100  # zu cm²
+        
+        # Laminat-Volumen (Oberfläche × Dicke)
+        laminate_volume_cm3 = mandrel_surface_area_cm2 * (total_laminate_thickness_mm / 10)
+        
+        # Gesamtmasse
+        laminate_mass_g = laminate_volume_cm3 * laminate_density_g_cm3
+        
+        # Faser- und Harz-Masse (basierend auf Faservolumenanteil)
+        # fiber_volume_fraction = V_fiber / V_laminate
+        # => V_fiber = fiber_volume_fraction * V_laminate
+        # => mass_fiber = density_fiber * V_fiber
+        # Typische Dichten: Carbon-Faser ~1.6 g/cm³, Epoxy-Harz ~1.2 g/cm³
+        
+        typical_fiber_density_g_cm3 = 1.60
+        typical_resin_density_g_cm3 = 1.20
+        
+        # Volumenanteile
+        fiber_volume_fraction_actual = min(fiber_volume_fraction, 0.70)  # Max 70%
+        resin_volume_fraction = 1.0 - fiber_volume_fraction_actual
+        
+        # Massen (vereinfachte Berechnung über Gewichtsanteile)
+        # Für Carbon/Epoxy: Masse ~ 0.6*fiber_density + 0.4*resin_density (für Fv=0.60)
+        fiber_mass_g = (fiber_volume_fraction_actual / laminate_density_g_cm3) * laminate_mass_g
+        resin_mass_g = laminate_mass_g - fiber_mass_g
+        
+        # ========== 2. ZEIT BERECHNUNG ==========
+        
+        # Pfad-Gesamtlänge
+        total_length_mm = 0.0
+        for i in range(1, len(self.path_points)):
+            dx = self.path_points[i].x - self.path_points[i-1].x
+            dy = self.path_points[i].y - self.path_points[i-1].y
+            dz = self.path_points[i].z - self.path_points[i-1].z
+            total_length_mm += np.sqrt(dx**2 + dy**2 + dz**2)
+        
+        # Durchschnittliche Geschwindigkeit
+        avg_speed_mm_min = np.mean([p.speed for p in self.path_points]) if self.path_points else 100.0
+        
+        # Reine Wickelzeit (ohne Ineffizienz)
+        winding_time_min = total_length_mm / avg_speed_mm_min if avg_speed_mm_min > 0 else 0
+        
+        # Ineffizienz-Zeit (Beschleunigung, Abbremsen, Umorientierung, etc.)
+        inefficiency_time_min = (winding_time_min / process_efficiency) - winding_time_min
+        
+        # Gesamtzeit = Rüstzeit + Wickelzeit + Ineffizienz + Setup
+        total_time_min = setup_time_min + winding_time_min + inefficiency_time_min
+        
+        # Effektive Geschwindigkeit (unter Berücksichtigung von Ineffizienz)
+        effective_speed_mm_min = total_length_mm / (winding_time_min + inefficiency_time_min) if (winding_time_min + inefficiency_time_min) > 0 else 0
+        
+        # ========== 3. RÜCKGABE ERGEBNISSE ==========
+        
+        return {
+            # Geometrie
+            "mandrel_surface_area_cm2": round(mandrel_surface_area_cm2, 2),
+            "laminate_volume_cm3": round(laminate_volume_cm3, 2),
+            
+            # Massen (g)
+            "laminate_mass_g": round(laminate_mass_g, 2),
+            "laminate_mass_kg": round(laminate_mass_g / 1000, 3),
+            "fiber_mass_g": round(fiber_mass_g, 2),
+            "resin_mass_g": round(resin_mass_g, 2),
+            "fiber_volume_fraction_actual": round(fiber_volume_fraction_actual, 3),
+            
+            # Zeiten (min)
+            "winding_time_min": round(winding_time_min, 2),
+            "inefficiency_time_min": round(inefficiency_time_min, 2),
+            "setup_time_min": round(setup_time_min, 2),
+            "total_time_min": round(total_time_min, 2),
+            "total_time_hours": round(total_time_min / 60, 2),
+            
+            # Geschwindigkeiten
+            "nominal_speed_mm_min": round(avg_speed_mm_min, 1),
+            "effective_speed_mm_min": round(effective_speed_mm_min, 1),
+            "process_efficiency": round(process_efficiency, 2),
+            
+            # Parameter
+            "total_path_length_mm": round(total_length_mm, 2),
+            "laminate_density_g_cm3": round(laminate_density_g_cm3, 2),
+            "total_laminate_thickness_mm": round(total_laminate_thickness_mm, 2),
+            
+            # Validierung
+            "validation_warnings": validation if validation else None
+        }
+    
     def export_path_points(self) -> List[Dict]:
         """Exportiere Pfad als Liste von Dictionaries"""
         return [p.to_dict() for p in self.path_points]
