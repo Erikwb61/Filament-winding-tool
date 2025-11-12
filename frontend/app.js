@@ -1,6 +1,9 @@
 // Backend URL
 const API_URL = 'http://localhost:5000/api';
 
+// Für Debugging: Falls Port 5000 nicht antwortet, verwende 5001
+const API_FALLBACK = 'http://localhost:5001/api';
+
 // Material-Datenbank (wird vom Backend geladen)
 let MATERIALS = {};
 
@@ -318,8 +321,20 @@ function hideMessages() {
 // Materialien und Prozesse vom Backend laden
 async function loadDataFromBackend() {
     try {
+        let apiUrl = API_URL;
+        
+        // Versuche auf API_FALLBACK zu fallen, wenn primary nicht antwortet
+        try {
+            const testResponse = await fetch(`${API_URL}/materials`, { signal: AbortSignal.timeout(2000) });
+            if (!testResponse.ok) throw new Error('Primary API not responding');
+        } catch (e) {
+            console.warn('Primary API unreachable, trying fallback...', e);
+            apiUrl = API_FALLBACK;
+        }
+        
         // Materialien laden
-        const materialsResponse = await fetch(`${API_URL}/materials`);
+        const materialsResponse = await fetch(`${apiUrl}/materials`);
+        if (!materialsResponse.ok) throw new Error('Failed to load materials');
         MATERIALS = await materialsResponse.json();
 
         // Material Dropdown füllen
@@ -333,7 +348,8 @@ async function loadDataFromBackend() {
         });
 
         // Prozesse laden
-        const processesResponse = await fetch(`${API_URL}/processes`);
+        const processesResponse = await fetch(`${apiUrl}/processes`);
+        if (!processesResponse.ok) throw new Error('Failed to load processes');
         PROCESSES = await processesResponse.json();
 
         // Prozess Dropdown füllen
@@ -348,10 +364,12 @@ async function loadDataFromBackend() {
 
         // Autoklav-Chart initialisieren
         await initAutoclaveChart();
+        
+        console.log('Backend data loaded successfully from:', apiUrl);
 
     } catch (error) {
         console.error('Fehler beim Laden der Backend-Daten:', error);
-        showError('Fehler beim Verbinden zum Backend. Läuft der Server auf Port 5000?');
+        showError('Fehler beim Verbinden zum Backend. Läuft der Server auf Port 5000 oder 5001?');
     }
 }
 

@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-PORT = 8000
+PORT = int(os.getenv('FRONTEND_PORT', 8000))
 FRONTEND_DIR = Path(__file__).parent
 
 class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
