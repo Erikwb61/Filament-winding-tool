@@ -1,8 +1,50 @@
 # Filament Winding Tool
 
-A professional web-based application for composite filament winding calculations and design. Features advanced material layup parsing, geometric calculations, and autoclave process profiles.
+Professionelles Web-basiertes Tool zur Faserwickeltechnik-Analyse mit klassischer Laminattheorie (CLT).
 
-## Features
+## Projektstruktur
+
+```
+fw_tool/
+├── frontend/              # Frontend (HTML, CSS, JS, Assets)
+│   ├── server.py         # HTTP Server für Frontend (Port 8000)
+│   ├── index.html        # Hauptanwendung
+│   ├── app.js            # Frontend Logik & API Communication
+│   ├── Carbongewebe.jpg  # Carbon-Faser Hintergrund
+│   └── ...
+│
+├── backend/               # Backend (Flask API, fw_core)
+│   ├── server.py         # Flask REST API (Port 5000)
+│   ├── fw_core/          # Core Calculation Libraries
+│   │   ├── lamina_properties.py       # Single-Ply Eigenschaften
+│   │   ├── laminate_properties.py     # ABD-Matrizen
+│   │   ├── failure_analysis.py        # Tsai-Wu Versagensanalyse
+│   │   ├── tolerance_analysis.py      # Monte-Carlo Studien
+│   │   └── ...
+│   └── test_*.py         # Backend Tests
+│
+└── README.md
+```
+
+## Schnellstart
+
+### 1. Backend starten (Port 5000)
+
+```bash
+cd backend
+python server.py
+```
+
+### 2. Frontend starten (Port 8000)
+
+```bash
+cd frontend
+python server.py
+```
+
+Öffne: `http://localhost:8000/index.html`
+
+## Hauptfeatures
 
 - **Material Library**: Support for multiple carbon fiber materials (M40J, IM7, MR70)
 - **Sequence Parsing**: Standard notation support (e.g., [0/±45/90]s)

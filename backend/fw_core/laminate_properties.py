@@ -114,23 +114,21 @@ class LaminateProperties:
         Returns:
             Dict mit E_x, E_y, G_xy, nu_xy für das komplette Laminat
         """
-        # Aus Membran-Steifigkeit A berechnen
-        # E_x = A_11 * t_total / t_ref
-        
         total_thickness = len(self.plies) * self.ply_thickness_mm / 1000  # m
         
-        # Aus A-Matrix
-        a11_inv = np.linalg.inv(self.A[0:2, 0:2])
+        # Für Membran-Steifheit: E_x = A_11 / t_total
+        # Aus A-Matrix (in GPa*m, thickness in m)
+        E_x = self.A[0, 0] / total_thickness  # GPa*m / m = GPa
+        E_y = self.A[1, 1] / total_thickness  # GPa
+        G_xy = self.A[2, 2] / total_thickness  # GPa
         
-        E_x = 1 / (total_thickness * a11_inv[0, 0])
-        E_y = 1 / (total_thickness * a11_inv[1, 1])
-        G_xy = 1 / (total_thickness * self.A[2, 2]**(-1))
-        nu_xy = -a11_inv[0, 1] / a11_inv[0, 0]
+        # Poisson's ratio (dimensionless)
+        nu_xy = -self.A[0, 1] / self.A[0, 0]
         
         return {
-            "E_x": E_x / 1e9,  # Konvertiere zu GPa
-            "E_y": E_y / 1e9,
-            "G_xy": G_xy / 1e9,
+            "E_x": E_x,  # Already in GPa
+            "E_y": E_y,
+            "G_xy": G_xy,
             "nu_xy": nu_xy,
             "thickness_mm": total_thickness * 1000,
             "num_plies": len(self.plies)

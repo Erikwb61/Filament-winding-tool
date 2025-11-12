@@ -1,0 +1,3 @@
+[START] Backend auf http://localhost:5000  |  CORS: ['http://localhost:8000']
+ * Serving Flask app 'server'
+ * Debug mode: on
