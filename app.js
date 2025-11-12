@@ -393,8 +393,13 @@ async function calculateLaminateProperties() {
         // Ergebnisse anzeigen
         console.log('✓ Laminate Properties (ABD Matrix):', result);
         const effProps = result.effective_properties;
+        
+        document.getElementById('clt-ex').textContent = effProps.E_x_GPa.toFixed(3);
+        document.getElementById('clt-gxy').textContent = effProps.G_xy_GPa.toFixed(3);
+        document.getElementById('cltResults').style.display = 'block';
+        
         showSuccess(
-            `✓ CLT berechnet: E_x=${effProps.E_x_GPa} GPa, E_y=${effProps.E_y_GPa} GPa, G_xy=${effProps.G_xy_GPa} GPa`
+            `✓ CLT berechnet: E_x=${effProps.E_x_GPa.toFixed(2)} GPa, E_y=${effProps.E_y_GPa.toFixed(2)} GPa, G_xy=${effProps.G_xy_GPa.toFixed(2)} GPa`
         );
 
         return result;
@@ -438,6 +443,13 @@ async function calculateFailureAnalysis() {
         // Ergebnisse anzeigen
         console.log('✓ Failure Analysis (Tsai-Wu):', result);
         const global = result.global_analysis;
+        
+        document.getElementById('clt-sf').textContent = global.min_safety_factor.toFixed(2);
+        document.getElementById('clt-ply').textContent = global.critical_ply_id;
+        document.getElementById('clt-status').textContent = global.design_status.toUpperCase();
+        document.getElementById('clt-prob').textContent = (global.probability_of_failure * 100).toFixed(2);
+        document.getElementById('cltResults').style.display = 'block';
+        
         showSuccess(
             `✓ Failure Analysis: Min SF=${global.min_safety_factor.toFixed(2)}, Critical Ply=${global.critical_ply_id}, Status=${global.design_status.toUpperCase()}`
         );
@@ -485,8 +497,90 @@ async function runToleranceStudy() {
         // Ergebnisse anzeigen
         console.log('✓ Tolerance Study (Monte-Carlo):', result);
         const props = result.property_statistics;
+        
+        // Chart anzeigen
+        document.getElementById('toleranceChartContainer').style.display = 'block';
+        document.getElementById('cltResults').style.display = 'block';
+        
+        // Update result cards
+        if (props.E_x) {
+            document.getElementById('clt-ex').textContent = props.E_x.mean.toFixed(3);
+        }
+        if (props.G_xy) {
+            document.getElementById('clt-gxy').textContent = props.G_xy.mean.toFixed(3);
+        }
+
+        // Tolerance Chart erstellen
+        const chartData = {
+            labels: ['E_x', 'E_y', 'G_xy', 'ν_xy'],
+            mean: [
+                props.E_x ? props.E_x.mean : 0,
+                props.E_y ? props.E_y.mean : 0,
+                props.G_xy ? props.G_xy.mean : 0,
+                props.nu_xy ? props.nu_xy.mean : 0
+            ],
+            std: [
+                props.E_x ? props.E_x.std : 0,
+                props.E_y ? props.E_y.std : 0,
+                props.G_xy ? props.G_xy.std : 0,
+                props.nu_xy ? props.nu_xy.std : 0
+            ]
+        };
+
+        const ctx = document.getElementById('toleranceChart');
+        if (ctx) {
+            if (window.toleranceChartInstance) {
+                window.toleranceChartInstance.destroy();
+            }
+
+            window.toleranceChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [
+                        {
+                            label: 'Mean Value',
+                            data: chartData.mean,
+                            backgroundColor: 'rgba(16, 185, 129, 0.5)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Std Deviation',
+                            data: chartData.std,
+                            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                font: { size: 12, weight: 'bold' },
+                                padding: 15
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Value [GPa]'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         showSuccess(
-            `✓ Tolerance Study: ${numSamples} samples, E_x CV=${props.E_x ? props.E_x.cv_percent : 'N/A'}%`
+            `✓ Tolerance Study: ${numSamples} samples berechnet, E_x CV=${props.E_x ? props.E_x.cv_percent.toFixed(2) : 'N/A'}%`
         );
 
         return result;

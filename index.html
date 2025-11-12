@@ -24,8 +24,10 @@
             --text-primary: #d0d0d0;
             --text-secondary: #999999;
             --text-tertiary: #666666;
-            --success: #666666;
-            --error: #999999;
+            --success: #10b981;
+            --error: #ef4444;
+            --clt-accent: #3b82f6;
+            --clt-accent-light: #60a5fa;
         }
 
         html {
@@ -34,7 +36,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
-            background-image: url('./carbon-bg.png');
+            background-image: url('./Carbongewebe.jpg');
             background-size: cover;
             background-attachment: fixed;
             background-repeat: no-repeat;
@@ -52,7 +54,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, rgba(26, 26, 26, 0.7) 0%, rgba(45, 45, 45, 0.7) 100%);
+            background: linear-gradient(135deg, rgba(26, 26, 26, 0.8) 0%, rgba(45, 45, 45, 0.85) 100%);
             z-index: -1;
             pointer-events: none;
         }
@@ -621,13 +623,64 @@
                 </div>
 
                 <div class="info-box">
-                    Classical Laminate Theory (CLT) für Steifigkeitsmatrix, Versagensanalyse mit Tsai-Wu Kriterium und Toleranzstudien.
+                    Classical Laminate Theory (CLT) für Steifigkeitsmatrix (ABD), Versagensanalyse (Tsai-Wu) und Monte-Carlo Toleranzstudien.
                 </div>
 
                 <div class="btn-group">
-                    <button class="btn-primary" onclick="calculateLaminateProperties()">ABD Matrix</button>
-                    <button class="btn-primary" onclick="calculateFailureAnalysis()">Failure</button>
-                    <button class="btn-primary" onclick="runToleranceStudy()">Tolerance</button>
+                    <button class="btn-primary" onclick="calculateLaminateProperties()" style="background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); box-shadow: 0 8px 16px rgba(59, 130, 246, 0.25);">
+                        <i class="fas fa-th-large"></i> ABD Matrix
+                    </button>
+                    <button class="btn-primary" onclick="calculateFailureAnalysis()" style="background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); box-shadow: 0 8px 16px rgba(245, 158, 11, 0.25);">
+                        <i class="fas fa-exclamation-triangle"></i> Failure
+                    </button>
+                    <button class="btn-primary" onclick="runToleranceStudy()" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); box-shadow: 0 8px 16px rgba(16, 185, 129, 0.25);">
+                        <i class="fas fa-random"></i> Tolerance
+                    </button>
+                </div>
+
+                <!-- CLT Results Section -->
+                <div id="cltResults" style="display: none; margin-top: 28px;">
+                    <div class="section-title" style="margin-bottom: 18px;">CLT Analysis Results</div>
+                    
+                    <div class="results-grid" id="cltResultsGrid">
+                        <div class="result-card" style="border-color: rgba(59, 130, 246, 0.3); background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%);">
+                            <div class="result-label" style="color: #3b82f6;">E_x (Stiffness)</div>
+                            <div class="result-value" id="clt-ex" style="color: #60a5fa;">–</div>
+                            <div class="result-unit">GPa</div>
+                        </div>
+                        <div class="result-card" style="border-color: rgba(59, 130, 246, 0.3); background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.02) 100%);">
+                            <div class="result-label" style="color: #3b82f6;">G_xy (Shear)</div>
+                            <div class="result-value" id="clt-gxy" style="color: #60a5fa;">–</div>
+                            <div class="result-unit">GPa</div>
+                        </div>
+                        <div class="result-card" style="border-color: rgba(245, 158, 11, 0.3); background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%);">
+                            <div class="result-label" style="color: #f59e0b;">Min Safety Factor</div>
+                            <div class="result-value" id="clt-sf" style="color: #fbbf24;">–</div>
+                            <div class="result-unit">Factor</div>
+                        </div>
+                        <div class="result-card" style="border-color: rgba(245, 158, 11, 0.3); background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%);">
+                            <div class="result-label" style="color: #f59e0b;">Critical Ply</div>
+                            <div class="result-value" id="clt-ply" style="color: #fbbf24;">–</div>
+                            <div class="result-unit">ID</div>
+                        </div>
+                        <div class="result-card" style="border-color: rgba(16, 185, 129, 0.3); background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%);">
+                            <div class="result-label" style="color: #10b981;">Status</div>
+                            <div class="result-value" id="clt-status" style="color: #6ee7b7; font-size: 1.2rem;">–</div>
+                            <div class="result-unit">Design</div>
+                        </div>
+                        <div class="result-card" style="border-color: rgba(16, 185, 129, 0.3); background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%);">
+                            <div class="result-label" style="color: #10b981;">Probability</div>
+                            <div class="result-value" id="clt-prob" style="color: #6ee7b7;">–</div>
+                            <div class="result-unit">%</div>
+                        </div>
+                    </div>
+
+                    <div id="toleranceChartContainer" style="display: none; margin-top: 24px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.02) 100%); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 18px;">
+                        <div class="section-title" style="margin-bottom: 18px;">Tolerance Study Statistics</div>
+                        <div class="chart-container">
+                            <canvas id="toleranceChart"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="summary" class="summary-box">
