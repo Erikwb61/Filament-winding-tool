@@ -25,6 +25,8 @@ from fw_core.lamina_properties import LaminaDatabase
 from fw_core.laminate_properties import LaminateProperties, SymmetricLaminate
 from fw_core.failure_analysis import LaminateFailureAnalysis, ReserveFactorAnalysis
 from fw_core.tolerance_analysis import ToleranceAnalysis
+from fw_core.path_optimizer import Geometry, PathOptimizer
+from fw_core.gcode_generator import GCodeGenerator, MachineConfig
 from fw_core import autoclave
 
 # -----------------------------------------------------------------------------
@@ -83,6 +85,18 @@ class TolerancePayload(LaminatePropsPayload):
     N_x: Optional[float] = None
     N_y: Optional[float] = 0.0
     N_xy: Optional[float] = 0.0
+
+
+class ExportGCodePayload(LaminatePropsPayload):
+    diameter_mm: float = Field(default=200.0, gt=0)
+    length_mm: float = Field(default=500.0, gt=0)
+    taper_angle_deg: float = Field(default=0.0, ge=0, le=30)
+    winding_angle_deg: float = Field(default=45.0, ge=0, le=90)
+    pitch_mm: float = Field(default=10.0, gt=0)
+    num_turns: int = Field(default=5, ge=1, le=100)
+    machine_type: str = Field(default="4-axis")  # 4-axis oder 6-axis
+    controller_type: str = Field(default="fanuc")  # fanuc, siemens, heidenhain
+    feed_rate_mm_min: float = Field(default=100.0, gt=0)
 
 
 # -----------------------------------------------------------------------------
@@ -469,9 +483,180 @@ def api_tolerance():
         return fail_response(e, 400)
 
 
-# -----------------------------------------------------------------------------
+# =============================================================================
+# G-Code Export Endpoint
+# =============================================================================
+@app.post("/api/export-gcode")
+def export_gcode():
+    """
+    Generiere G-Code für CNC-Wickelmaschine
+    
+    Request Body:
+    - sequence: Laminat-Sequenz (z.B. "[0/±45/90]s")
+    - material: Material-Name (z.B. "M40J")
+    - ply_thickness_mm: PLY-Dicke (mm)
+    - diameter_mm: Zylinder-Durchmesser (mm)
+    - length_mm: Zylinder-Länge (mm)
+    - winding_angle_deg: Wickelwinkel (°)
+    - pitch_mm: Steigung pro Umdrehung (mm)
+    - num_turns: Anzahl der Umwindungen
+    - machine_type: "4-axis" oder "6-axis"
+    - controller_type: "fanuc", "siemens", "heidenhain"
+    - feed_rate_mm_min: Vorschubgeschwindigkeit (mm/min)
+    
+    Response:
+    - gcode: Generierter G-Code String
+    - filename: Vorgeslagener Dateiname
+    - machine_config: Maschinenparameter
+    - path_stats: Pfad-Statistiken
+    - warnings: Validierungswarnungen
+    """
+    try:
+        payload = ExportGCodePayload(**json_body_or_empty())
+        
+        # ========== 1. Laminat-Eigenschaften berechnen ==========
+        
+        # Parse Sequenz
+        lamina_list = parse_sequence_general(payload.sequence)
+        
+        # Erstelle LaminateProperties
+        lam = LaminateProperties(
+            lamina_list=lamina_list,
+            ply_thickness_mm=payload.ply_thickness_mm,
+            material_name=payload.material
+        )
+        
+        # ========== 2. Geometrie und Pfad generieren ==========
+        
+        # Erstelle Geometrie
+        geom = Geometry(
+            diameter_mm=payload.diameter_mm,
+            length_mm=payload.length_mm,
+            taper_angle_deg=payload.taper_angle_deg
+        )
+        
+        # Erstelle PathOptimizer
+        optimizer = PathOptimizer(geom)
+        
+        # Generiere Pfad (geodätisch optimal)
+        path_points = optimizer.generate_geodesic_path(
+            winding_angle_deg=payload.winding_angle_deg,
+            num_turns=payload.num_turns,
+            speed_mm_min=payload.feed_rate_mm_min
+        )
+        
+        # Optimiere für spezifische Maschine
+        path_optimized = optimizer.optimize_for_machine(
+            machine_type=payload.machine_type
+        )
+        
+        path_stats = optimizer.get_path_statistics()
+        path_export = optimizer.export_path_points()
+        
+        # ========== 3. G-Code generieren ==========
+        
+        # Erstelle Maschinenconfig
+        machine_config = MachineConfig(
+            name=f"CNC Winding {payload.machine_type.upper()}",
+            max_speed_mm_min=5000.0,
+            acceleration_mm_s2=500.0,
+            feed_rate_mm_min=payload.feed_rate_mm_min,
+            controller_type=payload.controller_type
+        )
+        
+        # Erstelle Generator
+        gen = GCodeGenerator(machine_config)
+        
+        # Generiere Programm
+        gen.program_start(f"WINDING_{payload.material}")
+        gen.setup_machine()
+        gen.add_path_points(
+            path_export,
+            z_safe_mm=max(50.0, payload.length_mm * 0.1),
+            use_rapid=False,
+            feed_rate=payload.feed_rate_mm_min
+        )
+        gen.add_return_to_safe()
+        gen.program_end()
+        
+        # Validiere Code
+        warnings = gen.validate_code()
+        
+        # ========== 4. Rückgabe ==========
+        
+        gcode_str = gen.generate_code()
+        
+        return jsonify({
+            "success": True,
+            "gcode": gcode_str,
+            "filename": f"WINDING_{payload.material}_{payload.sequence.replace('/', '_')}.nc",
+            "machine_config": {
+                "name": machine_config.name,
+                "type": payload.machine_type,
+                "controller": payload.controller_type,
+                "feed_rate_mm_min": payload.feed_rate_mm_min,
+                "max_speed_mm_min": machine_config.max_speed_mm_min
+            },
+            "path_statistics": path_stats,
+            "laminate_properties": {
+                "sequence": str(payload.sequence),
+                "material": payload.material,
+                "num_plies": len(lamina_list),
+                "total_thickness_mm": lam.total_thickness,
+                "E_x_GPa": round(lam.effective_properties()["E_x"], 2),
+                "E_y_GPa": round(lam.effective_properties()["E_y"], 2),
+            },
+            "warnings": warnings,
+            "status": "ok"
+        })
+    
+    except ValidationError as ve:
+        return fail_response(ve, 400)
+    except Exception as e:
+        return fail_response(e, 400)
+
+
+# =============================================================================
+# Test/Debug Endpoint für G-Code (GET-Version zum Schnelltesten)
+# =============================================================================
+@app.get("/api/export-gcode/sample")
+def export_gcode_sample():
+    """Beispiel G-Code für Testzwecke"""
+    try:
+        # Erstelle Maschinenconfig
+        machine_config = MachineConfig(
+            name="CNC Winding 4-AXIS",
+            feed_rate_mm_min=100.0
+        )
+        
+        # Erstelle Generator
+        gen = GCodeGenerator(machine_config)
+        gen.program_start("WINDING_SAMPLE")
+        gen.setup_machine()
+        
+        # Füge direkt Bewegungsbefehle hinzu (ohne add_path_points für bessere Performance)
+        gen.rapid_move(x=100.0, y=0.0, z=50.0, theta=0.0, comment="Move to safe height")
+        gen.linear_move(x=100.0, y=0.0, z=10.0, theta=0.0, speed_mm_min=100.0, comment="Start position")
+        gen.linear_move(x=100.0, y=0.0, z=20.0, theta=45.0, speed_mm_min=100.0, comment="Winding pass 1")
+        gen.linear_move(x=100.0, y=0.0, z=30.0, theta=90.0, speed_mm_min=100.0, comment="Winding pass 2")
+        gen.linear_move(x=100.0, y=0.0, z=40.0, theta=135.0, speed_mm_min=100.0, comment="Winding pass 3")
+        gen.add_return_to_safe()
+        gen.program_end()
+        
+        return jsonify({
+            "success": True,
+            "gcode": gen.generate_code(),
+            "status": "Sample G-Code generated",
+            "lines": len(gen.generate_code().split('\n'))
+        })
+    
+    except Exception as e:
+        return fail_response(e, 400)
+
+
+# =============================================================================
 # Health & Errors
-# -----------------------------------------------------------------------------
+# =============================================================================
 @app.get("/health")
 def health():
     return jsonify({"status": "ok", "message": "Filament Winding Tool Backend läuft"})
