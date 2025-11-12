@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filament Winding Tool - Advanced Composite Analysis</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* ============================================================================
+           DESIGN SYSTEM: CSS Custom Properties
+           ============================================================================ */
+        :root {
+            /* Color Palette - Carbon Modern */
+            --color-primary: #0ea5e9;        /* Neon Blue */
+            --color-primary-dark: #0284c7;   /* Deep Blue */
+            --color-primary-light: #06b6d4;  /* Cyan */
+            --color-secondary: #1e293b;      /* Dark Slate */
+            --color-tertiary: #0f172a;       /* Near Black */
+            --color-accent: #10b981;         /* Emerald */
+            --color-warning: #f59e0b;        /* Amber */
+            --color-danger: #ef4444;         /* Red */
+            
+            /* Text Colors */
+            --text-primary: #f1f5f9;         /* Light */
+            --text-secondary: #cbd5e1;       /* Medium */
+            --text-tertiary: #94a3b8;        /* Dim */
+            
+            /* Background Colors */
+            --bg-primary: #0f172a;           /* Main */
+            --bg-secondary: #1e293b;         /* Cards */
+            --bg-tertiary: #334155;          /* Hover */
+            
+            /* Shadows - Carbon texture */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+            --shadow-xl: 0 12px 32px rgba(14, 165, 233, 0.15);
+            
+            /* Borders */
+            --border-color: rgba(71, 85, 105, 0.3);
+            --border-width: 1px;
+            --border-radius-sm: 6px;
+            --border-radius-md: 8px;
+            --border-radius-lg: 12px;
+            
+            /* Transitions */
+            --transition-fast: 150ms ease-out;
+            --transition-normal: 250ms ease-out;
+            --transition-slow: 350ms ease-out;
+            
+            /* Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            --font-mono: 'Monaco', 'Courier New', monospace;
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 2rem;
+        }
+
+        /* ============================================================================
+           GLOBAL STYLES
+           ============================================================================ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1f3a 50%, var(--bg-secondary) 100%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Carbon texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 2px),
+                repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* ============================================================================
+           LAYOUT: Main Container
+           ============================================================================ */
+        .container {
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            min-height: 100vh;
+            gap: 0;
+        }
+
+        @media (min-width: 1280px) {
+            .container {
+                grid-template-columns: 360px 1fr;
+                grid-template-rows: auto 1fr;
+            }
+        }
+
+        /* ============================================================================
+           HEADER
+           ============================================================================ */
+        .header {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border-bottom: var(--border-width) solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2rem;
+            grid-column: 1 / -1;
+            box-shadow: var(--shadow-md);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            font-size: var(--font-size-xl);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+            transition: all var(--transition-normal);
+        }
+
+        .logo:hover {
+            color: var(--color-primary);
+            transform: scale(1.05);
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+            border-radius: var(--border-radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 18px;
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-left: auto;
+        }
+
+        .header-nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: var(--font-size-sm);
+            transition: all var(--transition-fast);
+            position: relative;
+            padding-bottom: 2px;
+        }
+
+        .header-nav a::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
+            transition: width var(--transition-normal);
+        }
+
+        .header-nav a:hover {
+            color: var(--color-primary);
+        }
+
+        .header-nav a:hover::after {
+            width: 100%;
+        }
+
+        /* ============================================================================
+           SIDEBAR
+           ============================================================================ */
+        .sidebar {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border-right: var(--border-width) solid var(--border-color);
+            padding: 2rem 1.5rem;
+            overflow-y: auto;
+            display: none;
+            flex-direction: column;
+            gap: 2rem;
+            grid-row: 2;
+            grid-column: 1;
+            height: calc(100vh - 65px);
+            position: sticky;
+            top: 65px;
+        }
+
+        @media (min-width: 1280px) {
+            .sidebar {
+                display: flex;
+            }
+        }
+
+        .sidebar-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .sidebar-title {
+            font-size: var(--font-size-xs);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-tertiary);
+        }
+
+        .sidebar-image {
+            width: 100%;
+            border-radius: var(--border-radius-lg);
+            overflow: hidden;
+            border: var(--border-width) solid var(--border-color);
+            aspect-ratio: 1 / 1;
+            box-shadow: var(--shadow-lg);
+            transition: all var(--transition-normal);
+        }
+
+        .sidebar-image:hover {
+            transform: scale(1.02);
+            border-color: var(--color-primary);
+            box-shadow: 0 0 30px rgba(14, 165, 233, 0.2);
+        }
+
+        .sidebar-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .sidebar-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: rgba(15, 23, 42, 0.5);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            padding: 1rem;
+            text-align: center;
+            transition: all var(--transition-normal);
+        }
+
+        .stat-card:hover {
+            background: rgba(14, 165, 233, 0.1);
+            border-color: var(--color-primary);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            color: var(--color-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ============================================================================
+           MAIN CONTENT
+           ============================================================================ */
+        .main {
+            grid-row: 2;
+            grid-column: 1 / -1;
+            padding: 2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            max-height: calc(100vh - 65px);
+        }
+
+        @media (min-width: 1280px) {
+            .main {
+                grid-column: 2;
+                padding: 2.5rem;
+                gap: 2.5rem;
+            }
+        }
+
+        /* ============================================================================
+           CARDS & PANELS
+           ============================================================================ */
+        .card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(71, 85, 105, 0.3) 100%);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: var(--border-radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            backdrop-filter: blur(8px);
+            transition: all var(--transition-normal);
+        }
+
+        .card:hover {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 30px rgba(14, 165, 233, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: var(--border-width) solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .card-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+            border-radius: var(--border-radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+        }
+
+        .card-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            opacity: 0.8;
+        }
+
+        /* ============================================================================
+           FORM ELEMENTS
+           ============================================================================ */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input,
+        .form-select {
+            background: rgba(15, 23, 42, 0.5);
+            border: var(--border-width) solid var(--border-color);
+            border-radius: var(--border-radius-md);
+            padding: 0.875rem 1rem;
+            color: var(--text-primary);
+            font-size: var(--font-size-sm);
+            font-family: var(--font-family);
+            transition: all var(--transition-fast);
+        }
+
+        .form-input::placeholder,
+        .form-select {
+            color: var(--text-tertiary);
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            background: rgba(14, 165, 233, 0.05);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }
+
+        .form-select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cbd5e1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            padding-right: 2.5rem;
+        }
+
+        /* ============================================================================
+           BUTTONS
+           ============================================================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius-md);
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: var(--font-family);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Primary Button */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+            color: white;
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(14, 165, 233, 0.5);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* Secondary Button */
+        .btn-secondary {
+            background: rgba(71, 85, 105, 0.3);
+            color: var(--color-primary);
+            border: var(--border-width) solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(14, 165, 233, 0.1);
+            border-color: var(--color-primary);
+            transform: translateY(-2px);
+        }
+
+        /* Success Button */
+        .btn-success {
+            background: linear-gradient(135deg, var(--color-accent) 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Button Group */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        /* ============================================================================
+           GRID LAYOUTS
+           ============================================================================ */
+        .grid {
+            display: grid;
+            gap: 2rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        /* ============================================================================
+           TABS
+           ============================================================================ */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: var(--border-width) solid var(--border-color);
+            margin-bottom: 2rem;
+            overflow-x: auto;
+        }
+
+        .tab-button {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            transition: all var(--transition-normal);
+            position: relative;
+            white-space: nowrap;
+        }
+
+        .tab-button:hover {
+            color: var(--color-primary);
+        }
+
+        .tab-button.active {
+            color: var(--color-primary);
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ============================================================================
+           ALERTS & BADGES
+           ============================================================================ */
+        .badge {
+            display: inline-block;
+            padding: 0.375rem 0.875rem;
+            border-radius: 9999px;
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-primary {
+            background: rgba(14, 165, 233, 0.2);
+            color: var(--color-primary);
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--color-accent);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--color-warning);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--color-danger);
+        }
+
+        /* ============================================================================
+           UTILITY CLASSES
+           ============================================================================ */
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mt-3 { margin-top: 1.5rem; }
+        .mt-4 { margin-top: 2rem; }
+
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+        .mb-3 { margin-bottom: 1.5rem; }
+        .mb-4 { margin-bottom: 2rem; }
+
+        .opacity-50 { opacity: 0.5; }
+        .opacity-75 { opacity: 0.75; }
+
+        /* ============================================================================
+           RESPONSIVE
+           ============================================================================ */
+        @media (max-width: 1279px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .main {
+                padding: 1rem;
+            }
+
+            .card {
+                padding: 1.5rem;
+            }
+
+            .grid-2,
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .header {
+                gap: 1rem;
+            }
+
+            .header-nav {
+                gap: 0.75rem;
+            }
+
+            .logo {
+                font-size: var(--font-size-lg);
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .tabs {
+                gap: 0;
+            }
+
+            .tab-button {
+                padding: 0.75rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ============================================================================
+         HEADER
+         ============================================================================ -->
+    <header class="header">
+        <a href="#" class="logo">
+            <div class="logo-icon">⚙</div>
+            <span>Filament Winding</span>
+        </a>
+        <nav class="header-nav">
+            <a href="#design">Design</a>
+            <a href="#analysis">Analysis</a>
+            <a href="#export">Export</a>
+            <a href="#docs">Docs</a>
+        </nav>
+    </header>
+
+    <!-- ============================================================================
+         MAIN CONTAINER
+         ============================================================================ -->
+    <div class="container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Filament Geometry</h3>
+                <div class="sidebar-image">
+                    <img src="Filament-Winding-4.jpg" alt="Filament Winding">
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Project Stats</h3>
+                <div class="sidebar-stats">
+                    <div class="stat-card">
+                        <div class="stat-value">12</div>
+                        <div class="stat-label">Plies</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">2.5</div>
+                        <div class="stat-label">MM thick</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">850</div>
+                        <div class="stat-label">MPa</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">1.8</div>
+                        <div class="stat-label">SF</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Carbon Texture</h3>
+                <div class="sidebar-image">
+                    <img src="Carbongewebe.jpg" alt="Carbon Texture">
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main">
+            <!-- HERO SECTION -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">
+                            <div class="card-icon">🚀</div>
+                            Advanced Composite Analysis
+                        </div>
+                        <div class="card-subtitle">Classical Laminate Theory with Failure Prediction</div>
+                    </div>
+                </div>
+                <p style="color: var(--text-secondary); line-height: 1.8;">
+                    Professional analysis platform for filament winding design. Compute laminate stiffness matrices, 
+                    predict failure using Tsai-Wu criterion, and perform Monte-Carlo tolerance studies.
+                </p>
+            </div>
+
+            <!-- DESIGN TAB SECTION -->
+            <div class="card">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="layup">Layup Design</button>
+                    <button class="tab-button" data-tab="materials">Materials</button>
+                    <button class="tab-button" data-tab="geometry">Geometry</button>
+                </div>
+
+                <!-- Layup Design Tab -->
+                <div id="layup" class="tab-content active">
+                    <div class="grid grid-2">
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">Material</label>
+                                <select class="form-select" id="material">
+                                    <option value="M40J">M40J (170 GPa)</option>
+                                    <option value="IM7">IM7 (231 GPa)</option>
+                                    <option value="MR70">MR70 (240 GPa)</option>
+                                    <option value="T700S">T700S (230 GPa)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">Ply Thickness (mm)</label>
+                                <input type="number" class="form-input" id="plyThickness" value="0.125" step="0.01" min="0.05">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">Layup Sequence</label>
+                                <input type="text" class="form-input" id="sequence" value="[0/±45/90]s" 
+                                    placeholder="e.g., [0/±45/90]s">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">Loading Direction (°)</label>
+                                <input type="number" class="form-input" id="loadingAngle" value="0" min="-180" max="180">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="btn-group mt-3">
+                        <button class="btn btn-primary" onclick="analyzeLayup()">
+                            <i class="fas fa-calculator"></i> Analyze Laminate
+                        </button>
+                        <button class="btn btn-secondary" onclick="resetForm()">
+                            <i class="fas fa-redo"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Materials Tab -->
+                <div id="materials" class="tab-content">
+                    <div class="grid grid-3">
+                        <div style="background: rgba(14, 165, 233, 0.1); border-radius: 8px; padding: 1.5rem; border: 1px solid rgba(14, 165, 233, 0.3);">
+                            <div style="font-weight: 700; color: var(--color-primary); margin-bottom: 0.5rem;">M40J</div>
+                            <div style="font-size: 12px; color: var(--text-tertiary);">E₁: 170 GPa<br>E₂: 10 GPa<br>G₁₂: 13 GPa</div>
+                        </div>
+                        <div style="background: rgba(6, 182, 212, 0.1); border-radius: 8px; padding: 1.5rem; border: 1px solid rgba(6, 182, 212, 0.3);">
+                            <div style="font-weight: 700; color: var(--color-primary-light); margin-bottom: 0.5rem;">IM7</div>
+                            <div style="font-size: 12px; color: var(--text-tertiary);">E₁: 231 GPa<br>E₂: 15 GPa<br>G₁₂: 8.3 GPa</div>
+                        </div>
+                        <div style="background: rgba(16, 185, 129, 0.1); border-radius: 8px; padding: 1.5rem; border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <div style="font-weight: 700; color: var(--color-accent); margin-bottom: 0.5rem;">MR70</div>
+                            <div style="font-size: 12px; color: var(--text-tertiary);">E₁: 240 GPa<br>E₂: 13 GPa<br>G₁₂: 10 GPa</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Geometry Tab -->
+                <div id="geometry" class="tab-content">
+                    <div class="grid grid-2">
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">Mandrel Diameter (mm)</label>
+                                <input type="number" class="form-input" value="200" min="50" max="1000">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label class="form-label">Mandrel Height (mm)</label>
+                                <input type="number" class="form-input" value="500" min="100" max="2000">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RESULTS SECTION -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon">📊</div>
+                        Laminate Properties
+                    </div>
+                </div>
+                <div class="grid grid-3">
+                    <div style="background: rgba(15, 23, 42, 0.5); border-radius: 8px; padding: 1.5rem; border: 1px solid var(--border-color);">
+                        <div style="font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 0.5rem;">E_x (Stiffness)</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-primary); font-family: var(--font-mono); margin-bottom: 0.5rem;" id="result-ex">--</div>
+                        <div style="font-size: 11px; color: var(--text-tertiary);">GPa</div>
+                    </div>
+                    <div style="background: rgba(15, 23, 42, 0.5); border-radius: 8px; padding: 1.5rem; border: 1px solid var(--border-color);">
+                        <div style="font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 0.5rem;">G_xy (Shear)</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-primary-light); font-family: var(--font-mono); margin-bottom: 0.5rem;" id="result-gxy">--</div>
+                        <div style="font-size: 11px; color: var(--text-tertiary);">GPa</div>
+                    </div>
+                    <div style="background: rgba(15, 23, 42, 0.5); border-radius: 8px; padding: 1.5rem; border: 1px solid var(--border-color);">
+                        <div style="font-size: 12px; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 0.5rem;">Min Safety Factor</div>
+                        <div style="font-size: 28px; font-weight: 700; color: var(--color-accent); font-family: var(--font-mono); margin-bottom: 0.5rem;" id="result-sf">--</div>
+                        <div style="font-size: 11px; color: var(--text-tertiary);">Factor</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAILURE ANALYSIS -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon">⚡</div>
+                        Failure Analysis
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: stretch;">
+                    <div>
+                        <h4 style="margin-bottom: 1rem; font-size: 14px; text-transform: uppercase; color: var(--text-tertiary);">Load Case</h4>
+                        <div class="form-group">
+                            <label class="form-label">N_x (N/m)</label>
+                            <input type="number" class="form-input" id="nx" value="1000" min="0">
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-success" onclick="runFailureAnalysis()">
+                                <i class="fas fa-check"></i> Run Analysis
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="margin-bottom: 1rem; font-size: 14px; text-transform: uppercase; color: var(--text-tertiary);">Results</h4>
+                        <div style="background: rgba(15, 23, 42, 0.5); border-radius: 8px; padding: 1.5rem; border: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                                <span style="color: var(--text-secondary);">Min SF:</span>
+                                <span style="font-weight: 700; color: var(--color-primary);" id="failure-minsf">--</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                                <span style="color: var(--text-secondary);">Critical Ply:</span>
+                                <span style="font-weight: 700; color: var(--color-warning);" id="failure-ply">--</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Status:</span>
+                                <span id="failure-status" class="badge badge-success">SAFE</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TOLERANCE STUDY -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon">🎯</div>
+                        Monte-Carlo Tolerance Study
+                    </div>
+                </div>
+                <div class="grid grid-2">
+                    <div>
+                        <div class="form-group">
+                            <label class="form-label">Angle Tolerance (°)</label>
+                            <input type="number" class="form-input" id="angleTol" value="1.0" step="0.1" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Thickness Tolerance (%)</label>
+                            <input type="number" class="form-input" id="thicknessTol" value="5" step="0.5" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Number of Samples</label>
+                            <input type="number" class="form-input" id="numSamples" value="500" step="100" min="100" max="5000">
+                        </div>
+                        <button class="btn btn-primary" onclick="runToleranceStudy()" style="width: 100%;">
+                            <i class="fas fa-sync"></i> Run Study
+                        </button>
+                    </div>
+                    <div id="toleranceChart">
+                        <canvas id="toleranceCanvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div class="card" style="text-align: center; opacity: 0.7;">
+                <p>Advanced Composite Analysis Platform | Classical Laminate Theory | Tsai-Wu Failure Criterion</p>
+                <p style="margin-top: 0.5rem; font-size: 12px;">© 2025 Filament Winding Tool | TUM Prototyping Lab</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- ============================================================================
+         JAVASCRIPT
+         ============================================================================ -->
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tabName = button.dataset.tab;
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                button.classList.add('active');
+                document.getElementById(tabName).classList.add('active');
+            });
+        });
+
+        // API Base URL
+        const API_URL = 'http://localhost:5000';
+
+        // Analyze Layup
+        async function analyzeLayup() {
+            const sequence = document.getElementById('sequence').value;
+            const material = document.getElementById('material').value;
+            const plyThickness = parseFloat(document.getElementById('plyThickness').value);
+
+            try {
+                const response = await fetch(`${API_URL}/api/laminate-properties`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sequence,
+                        material,
+                        ply_thickness_mm: plyThickness
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('result-ex').textContent = 
+                        data.effective_properties.E_x_GPa.toFixed(2);
+                    document.getElementById('result-gxy').textContent = 
+                        data.effective_properties.G_xy_GPa.toFixed(2);
+                    console.log('Laminate Properties:', data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        // Run Failure Analysis
+        async function runFailureAnalysis() {
+            const sequence = document.getElementById('sequence').value;
+            const material = document.getElementById('material').value;
+            const plyThickness = parseFloat(document.getElementById('plyThickness').value);
+            const nx = parseFloat(document.getElementById('nx').value);
+
+            try {
+                const response = await fetch(`${API_URL}/api/failure-analysis`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sequence,
+                        material,
+                        ply_thickness_mm: plyThickness,
+                        N_x: nx,
+                        N_y: 0,
+                        N_xy: 0
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const minSF = data.global_analysis.min_safety_factor;
+                    document.getElementById('failure-minsf').textContent = minSF.toFixed(2);
+                    document.getElementById('failure-ply').textContent = 
+                        data.global_analysis.critical_ply_id;
+                    
+                    const status = document.getElementById('failure-status');
+                    if (minSF > 1.5) {
+                        status.textContent = 'SAFE';
+                        status.className = 'badge badge-success';
+                    } else if (minSF > 1.0) {
+                        status.textContent = 'WARNING';
+                        status.className = 'badge badge-warning';
+                    } else {
+                        status.textContent = 'CRITICAL';
+                        status.className = 'badge badge-danger';
+                    }
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        // Run Tolerance Study
+        async function runToleranceStudy() {
+            const sequence = document.getElementById('sequence').value;
+            const material = document.getElementById('material').value;
+            const plyThickness = parseFloat(document.getElementById('plyThickness').value);
+            const angleTol = parseFloat(document.getElementById('angleTol').value);
+            const thicknessTol = parseFloat(document.getElementById('thicknessTol').value);
+            const numSamples = parseInt(document.getElementById('numSamples').value);
+
+            try {
+                const response = await fetch(`${API_URL}/api/tolerance-study`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sequence,
+                        material,
+                        ply_thickness_mm: plyThickness,
+                        angle_tolerance_deg: angleTol,
+                        thickness_tolerance_pct: thicknessTol,
+                        num_samples: numSamples
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    console.log('Tolerance Study Results:', data);
+                    // Chart will be rendered here
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Connection error: ' + error.message);
+            }
+        }
+
+        // Reset Form
+        function resetForm() {
+            document.getElementById('material').value = 'M40J';
+            document.getElementById('plyThickness').value = '0.125';
+            document.getElementById('sequence').value = '[0/±45/90]s';
+            document.getElementById('loadingAngle').value = '0';
+        }
+
+        // Test connection on load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    console.log('✅ Backend connected');
+                } else {
+                    console.warn('⚠️ Backend not responding');
+                }
+            } catch (error) {
+                console.warn('⚠️ Backend not available:', error.message);
+            }
+        });
+    </script>
+</body>
+</html>
